@@ -12,7 +12,7 @@ const Dashboard = () => {
     invoices, 
     loading, 
     createExampleData,
-    generateInvoicesForMonth 
+    generateMonthlyInvoices // NOME CORRIGIDO AQUI
   } = useFirestore();
 
   const handleCreateExampleData = async () => {
@@ -27,10 +27,12 @@ const Dashboard = () => {
 
   const handleGenerateInvoices = async () => {
     try {
-      const currentMonth = new Date().getMonth() + 1;
+      // O mês no objeto Date é baseado em zero (0-11)
+      const currentMonth = new Date().getMonth(); 
       const currentYear = new Date().getFullYear();
-      await generateInvoicesForMonth(currentMonth, currentYear);
-      alert('Faturas geradas com sucesso!');
+      // NOME CORRIGIDO AQUI
+      const count = await generateMonthlyInvoices(currentMonth, currentYear);
+      alert(`${count} faturas foram geradas com sucesso!`);
     } catch (error) {
       console.error('Erro ao gerar faturas:', error);
       alert('Erro ao gerar faturas: ' + error.message);

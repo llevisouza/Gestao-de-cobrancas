@@ -12,7 +12,7 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
 
   const getNavButtonClass = (view) => {
     const baseClass = "flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition";
-    const activeClass = "bg-blue-100 text-blue-700";
+    const activeClass = "bg-primary-100 text-primary-700"; // Usa a nova cor primária
     const inactiveClass = "text-gray-600 hover:text-gray-900 hover:bg-gray-100";
     
     return `${baseClass} ${currentView === view ? activeClass : inactiveClass}`;
@@ -29,68 +29,51 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo e Título */}
-          <div className="flex items-center space-x-8">
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-1">
-                <svg 
-                  className="w-8 h-8 text-orange-600" 
-                  fill="currentColor" 
-                  viewBox="0 0 20 20"
-                >
-                  <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-                </svg>
-                <svg 
-                  className="w-8 h-8 text-blue-600" 
-                  fill="currentColor" 
-                  viewBox="0 0 20 20"
-                >
-                  <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-gray-800">
-                Sistema de Cobranças
-              </span>
-            </div>
-            
-            {/* Navegação */}
-            <nav className="hidden md:flex space-x-6">
-              <button
-                onClick={() => onViewChange(ROUTES.DASHBOARD)}
-                className={getNavButtonClass(ROUTES.DASHBOARD)}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                </svg>
-                <span>Dashboard</span>
-              </button>
-              
-              <button
-                onClick={() => onViewChange(ROUTES.CLIENTS)}
-                className={getNavButtonClass(ROUTES.CLIENTS)}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
-                <span>Clientes</span>
-              </button>
-              
-              <button
-                onClick={() => onViewChange(ROUTES.REPORTS)}
-                className={getNavButtonClass(ROUTES.REPORTS)}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                </svg>
-                <span>Relatórios</span>
-              </button>
-            </nav>
+          <div className="flex items-center space-x-3">
+            <img src="/WhatsApp_Image_2025-09-20_at_14.40.27-removebg-preview.png" alt="Logo Conexão Delivery" className="h-8" />
+            <span className="hidden sm:inline text-xl font-bold text-gray-800">
+              Conexão Delivery
+            </span>
           </div>
+            
+          {/* Navegação */}
+          <nav className="hidden md:flex space-x-6">
+            <button
+              onClick={() => onViewChange(ROUTES.DASHBOARD)}
+              className={getNavButtonClass(ROUTES.DASHBOARD)}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+              </svg>
+              <span>Dashboard</span>
+            </button>
+            
+            <button
+              onClick={() => onViewChange(ROUTES.CLIENTS)}
+              className={getNavButtonClass(ROUTES.CLIENTS)}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+              </svg>
+              <span>Clientes</span>
+            </button>
+            
+            <button
+              onClick={() => onViewChange(ROUTES.REPORTS)}
+              className={getNavButtonClass(ROUTES.REPORTS)}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+              </svg>
+              <span>Relatórios</span>
+            </button>
+          </nav>
           
           {/* Ações do usuário */}
           <div className="flex items-center space-x-4">
             <button
               onClick={onCreateSampleData}
-              className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition duration-200"
+              className="hidden sm:inline-flex items-center bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition duration-200"
               title="Criar dados de exemplo para testar o sistema"
             >
               <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -100,7 +83,7 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
             </button>
             
             <div className="flex items-center space-x-3">
-              <div className="text-right">
+              <div className="hidden sm:block text-right">
                 <p className="text-sm font-medium text-gray-900">
                   {getUserDisplayName()}
                 </p>
@@ -109,7 +92,7 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
                 </p>
               </div>
               
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-medium">
                   {getUserDisplayName().charAt(0).toUpperCase()}
                 </span>
@@ -118,12 +101,12 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
             
             <button
               onClick={handleLogout}
-              className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-200"
+              className="bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 transition duration-200 text-xs sm:text-sm"
             >
-              <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 inline sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
               </svg>
-              Sair
+              <span className="hidden sm:inline">Sair</span>
             </button>
           </div>
         </div>

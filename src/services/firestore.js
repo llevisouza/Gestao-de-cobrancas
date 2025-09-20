@@ -60,7 +60,7 @@ export const clientService = {
     }
   },
   
-  // CORREÇÃO: Adicionar o método 'subscribe'
+  // Real-time listener para clientes
   subscribe(callback) {
     const q = query(
       collection(db, COLLECTIONS.CLIENTS),
@@ -96,7 +96,6 @@ export const clientService = {
   async delete(clientId) {
     try {
       const batch = writeBatch(db);
-
       // Deletar assinaturas relacionadas
       const subscriptionsQuery = query(
         collection(db, COLLECTIONS.SUBSCRIPTIONS),
@@ -106,7 +105,6 @@ export const clientService = {
       subscriptionsSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
-
       // Deletar faturas relacionadas
       const invoicesQuery = query(
         collection(db, COLLECTIONS.INVOICES),
@@ -116,7 +114,6 @@ export const clientService = {
       invoicesSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
-
       // Deletar cliente
       const clientRef = doc(db, COLLECTIONS.CLIENTS, clientId);
       batch.delete(clientRef);
@@ -169,7 +166,7 @@ export const subscriptionService = {
     }
   },
 
-  // CORREÇÃO: Adicionar o método 'subscribe'
+  // Real-time listener para assinaturas
   subscribe(callback) {
     const q = query(
       collection(db, COLLECTIONS.SUBSCRIPTIONS),
@@ -233,7 +230,6 @@ export const invoiceService = {
         return {
           id: doc.id,
           ...data,
-          // Converter Timestamps do Firebase para Date
           generationDate: data.generationDate?.toDate?.() || data.generationDate,
           dueDate: data.dueDate?.toDate?.() || data.dueDate,
           createdAt: data.createdAt?.toDate?.() || data.createdAt,
@@ -248,7 +244,7 @@ export const invoiceService = {
     }
   },
 
-  // CORREÇÃO: Adicionar o método 'subscribe'
+  // Real-time listener para faturas
   subscribe(callback) {
     const q = query(
       collection(db, COLLECTIONS.INVOICES),
@@ -285,6 +281,91 @@ export const invoiceService = {
       console.error('❌ Erro ao atualizar fatura:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  // ==========================================================
+  // ESTA É A FUNÇÃO CORRIGIDA COM A LÓGICA ANTI-DUPLICIDADE
+  // ==========================================================
+  async generateForMonth(month, year) {
+    try {
+      console.log(`Buscando assinaturas para gerar faturas de ${month + 1}/${year}.`);
+      
+      const subscriptionsQuery = query(
+        collection(db, COLLECTIONS.SUBSCRIPTIONS),
+        where('status', '==', 'active')
+      );
+      const activeSubscriptionsSnapshot = await getDocs(subscriptionsQuery);
+
+      if (activeSubscriptionsSnapshot.empty) {
+        console.log("Nenhuma assinatura ativa para gerar faturas.");
+        return 0;
+      }
+      
+      const batch = writeBatch(db);
+      let invoicesGeneratedCount = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Usamos Promise.all para aguardar todas as verificações assíncronas
+      await Promise.all(activeSubscriptionsSnapshot.docs.map(async (docSnap) => {
+        const subscription = docSnap.data();
+        const subscriptionId = docSnap.id;
+        
+        // Lógica para verificar se a fatura já existe
+        const invoiceCheckQuery = query(
+          collection(db, COLLECTIONS.INVOICES),
+          where('subscriptionId', '==', subscriptionId),
+          where('month', '==', month),
+          where('year', '==', year)
+        );
+
+        const existingInvoiceSnapshot = await getDocs(invoiceCheckQuery);
+
+        // Se a busca não retornar nenhum documento, a fatura não existe e pode ser criada
+        if (existingInvoiceSnapshot.empty) {
+          const startDate = subscription.startDate?.toDate ? subscription.startDate.toDate() : new Date(subscription.startDate);
+          
+          if (startDate <= today) {
+            const dueDate = new Date(year, month + 1, 0); // Vence no último dia do mês
+            
+            const newInvoice = {
+              clientId: subscription.clientId,
+              clientName: subscription.clientName,
+              subscriptionId: subscriptionId,
+              amount: subscription.amount,
+              description: `Fatura de assinatura (${month + 1}/${year})`,
+              generationDate: new Date(),
+              dueDate: dueDate,
+              status: 'pending',
+              month: month,
+              year: year,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            };
+            
+            const invoiceRef = doc(collection(db, COLLECTIONS.INVOICES));
+            batch.set(invoiceRef, newInvoice);
+            invoicesGeneratedCount++;
+            console.log(`Fatura para a assinatura ${subscriptionId} será criada.`);
+          }
+        } else {
+          // Se a fatura já existe, apenas informamos no console
+          console.log(`Fatura para a assinatura ${subscriptionId} já existe para ${month + 1}/${year}. Pulando.`);
+        }
+      }));
+
+      if (invoicesGeneratedCount > 0) {
+        await batch.commit();
+        console.log(`✅ ${invoicesGeneratedCount} NOVAS faturas criadas com sucesso.`);
+      } else {
+        console.log("Nenhuma nova fatura precisou ser criada.");
+      }
+      
+      return invoicesGeneratedCount;
+    } catch (error) {
+      console.error('❌ Erro ao gerar faturas mensais:', error);
+      throw error;
+    }
   }
 };
 
@@ -312,6 +393,7 @@ export const seedService = {
           pix: 'joao@email.com'
         },
         {
+      
           name: 'Maria Santos',
           email: 'maria@email.com',
           phone: '(11) 99999-2222',
@@ -321,12 +403,12 @@ export const seedService = {
         {
           name: 'Pedro Costa',
           email: 'pedro@email.com',
+          
           phone: '(11) 99999-3333',
           cpf: '456.789.123-00',
           pix: 'pedro@email.com'
         }
       ];
-
       // Criar clientes
       const createdClients = [];
       for (const client of sampleClients) {

@@ -16,48 +16,46 @@ export const useFirestore = () => {
   const [clients, setClients] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Manter true para loading inicial
   const [error, setError] = useState(null);
 
   // Função para verificar se data está vencida
   const isOverdue = (dueDate) => {
+    if (!dueDate) return false;
     const today = new Date();
     const due = dueDate.toDate ? dueDate.toDate() : new Date(dueDate);
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
     return due < today;
   };
 
   // Subscrições em tempo real
   useEffect(() => {
+    setLoading(true);
     console.log('🔄 Iniciando subscrições do Firestore...');
     
-    // Subscrição para clientes
     const unsubscribeClients = clientService.subscribe((data) => {
       console.log('✅ Clientes atualizados:', data.length);
       setClients(data);
     });
 
-    // Subscrição para assinaturas
     const unsubscribeSubscriptions = subscriptionService.subscribe((data) => {
       console.log('✅ Assinaturas atualizadas:', data.length);
       setSubscriptions(data);
     });
 
-    // Subscrição para faturas
     const unsubscribeInvoices = invoiceService.subscribe((data) => {
       console.log('✅ Faturas atualizadas:', data.length);
-      // Atualizar status das faturas vencidas
-      const updatedInvoices = data.map(invoice => {
-        return {
-          ...invoice,
-          status: invoice.status === 'pending' && isOverdue(invoice.dueDate) 
-            ? 'overdue' 
-            : invoice.status
-        };
-      });
+      const updatedInvoices = data.map(invoice => ({
+        ...invoice,
+        status: invoice.status === 'pending' && isOverdue(invoice.dueDate) 
+          ? 'overdue' 
+          : invoice.status
+      }));
       setInvoices(updatedInvoices);
+      setLoading(false); // Finaliza o loading após receber as faturas
     });
 
-    // Cleanup das subscrições
     return () => {
       console.log('🔄 Limpando subscrições do Firestore...');
       unsubscribeClients();
@@ -72,14 +70,7 @@ export const useFirestore = () => {
     setLoading(true);
     setError(null);
     try {
-      const newClient = {
-        name: clientData.name?.trim(),
-        email: clientData.email?.trim().toLowerCase(),
-        phone: clientData.phone?.trim(),
-        company: clientData.company?.trim() || '',
-        address: clientData.address?.trim() || ''
-      };
-      await clientService.create(newClient);
+      await clientService.create(clientData);
       console.log('✅ Cliente criado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao criar cliente:', error);
@@ -94,14 +85,7 @@ export const useFirestore = () => {
     setLoading(true);
     setError(null);
     try {
-      const updatedClient = {
-        name: clientData.name?.trim(),
-        email: clientData.email?.trim().toLowerCase(),
-        phone: clientData.phone?.trim(),
-        company: clientData.company?.trim() || '',
-        address: clientData.address?.trim() || ''
-      };
-      await clientService.update(clientId, updatedClient);
+      await clientService.update(clientId, clientData);
       console.log('✅ Cliente atualizado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao atualizar cliente:', error);
@@ -133,17 +117,7 @@ export const useFirestore = () => {
     setLoading(true);
     setError(null);
     try {
-      const newSubscription = {
-        clientId: subscriptionData.clientId,
-        service: subscriptionData.service?.trim(),
-        description: subscriptionData.description?.trim() || '',
-        amount: parseFloat(subscriptionData.amount),
-        billingCycle: subscriptionData.billingCycle,
-        startDate: new Date(subscriptionData.startDate),
-        status: subscriptionData.status || 'active',
-        billingDay: parseInt(subscriptionData.billingDay) || 5
-      };
-      await subscriptionService.create(newSubscription);
+      await subscriptionService.create(subscriptionData);
       console.log('✅ Assinatura criada com sucesso');
     } catch (error) {
       console.error('❌ Erro ao criar assinatura:', error);
@@ -158,15 +132,7 @@ export const useFirestore = () => {
     setLoading(true);
     setError(null);
     try {
-      const updatedSubscription = {
-        service: subscriptionData.service?.trim(),
-        description: subscriptionData.description?.trim() || '',
-        amount: parseFloat(subscriptionData.amount),
-        billingCycle: subscriptionData.billingCycle,
-        status: subscriptionData.status,
-        billingDay: parseInt(subscriptionData.billingDay) || 5
-      };
-      await subscriptionService.update(subscriptionId, updatedSubscription);
+      await subscriptionService.update(subscriptionId, subscriptionData);
       console.log('✅ Assinatura atualizada com sucesso');
     } catch (error) {
       console.error('❌ Erro ao atualizar assinatura:', error);
@@ -176,7 +142,7 @@ export const useFirestore = () => {
       setLoading(false);
     }
   };
-
+  
   const deleteSubscription = async (subscriptionId) => {
     setLoading(true);
     setError(null);
@@ -198,17 +164,7 @@ export const useFirestore = () => {
     setLoading(true);
     setError(null);
     try {
-      const newInvoice = {
-        clientId: invoiceData.clientId,
-        subscriptionId: invoiceData.subscriptionId || null,
-        amount: parseFloat(invoiceData.amount),
-        description: invoiceData.description?.trim(),
-        dueDate: new Date(invoiceData.dueDate),
-        status: invoiceData.status || 'pending',
-        month: invoiceData.month || new Date().getMonth(),
-        year: invoiceData.year || new Date().getFullYear()
-      };
-      await invoiceService.create(newInvoice);
+      await invoiceService.create(invoiceData);
       console.log('✅ Fatura criada com sucesso');
     } catch (error) {
       console.error('❌ Erro ao criar fatura:', error);
@@ -220,17 +176,31 @@ export const useFirestore = () => {
   };
 
   const updateInvoice = async (invoiceId, invoiceData) => {
+    // ESTA É A FUNÇÃO CORRIGIDA
     setLoading(true);
     setError(null);
     try {
-      const updatedInvoice = {
-        amount: parseFloat(invoiceData.amount),
-        description: invoiceData.description?.trim(),
-        dueDate: new Date(invoiceData.dueDate),
-        status: invoiceData.status
-      };
-      await invoiceService.update(invoiceId, updatedInvoice);
-      console.log('✅ Fatura atualizada com sucesso');
+      const dataToUpdate = {};
+
+      if (invoiceData.status !== undefined) {
+        dataToUpdate.status = invoiceData.status;
+        if (invoiceData.status === 'paid') {
+          dataToUpdate.paidDate = new Date();
+        }
+      }
+      if (invoiceData.amount !== undefined) {
+        dataToUpdate.amount = parseFloat(invoiceData.amount);
+      }
+      if (invoiceData.description !== undefined) {
+        dataToUpdate.description = invoiceData.description;
+      }
+      if (invoiceData.dueDate !== undefined) {
+        dataToUpdate.dueDate = new Date(invoiceData.dueDate);
+      }
+      if (Object.keys(dataToUpdate).length > 0) {
+        await invoiceService.update(invoiceId, dataToUpdate);
+        console.log('✅ Fatura atualizada com sucesso');
+      }
     } catch (error) {
       console.error('❌ Erro ao atualizar fatura:', error);
       setError(error);
@@ -289,6 +259,7 @@ export const useFirestore = () => {
   };
 
   const generateMonthlyInvoices = async (month, year) => {
+    // NOME CORRIGIDO PARA CORRESPONDER AO DASHBOARD
     setLoading(true);
     setError(null);
     try {
@@ -303,7 +274,7 @@ export const useFirestore = () => {
       setLoading(false);
     }
   };
-
+  
   const createExampleData = async () => {
     setLoading(true);
     setError(null);
@@ -320,24 +291,20 @@ export const useFirestore = () => {
     }
   };
 
-  // =================== GETTERS COMPUTADOS ===================
+  // =================== GETTERS COMPUTADOS (RESTAURADOS) ===================
 
-  // Buscar cliente por ID
   const getClientById = (clientId) => {
     return clients.find(client => client.id === clientId);
   };
 
-  // Buscar assinaturas por cliente
   const getSubscriptionsByClientId = (clientId) => {
     return subscriptions.filter(sub => sub.clientId === clientId);
   };
 
-  // Buscar faturas por cliente
   const getInvoicesByClientId = (clientId) => {
     return invoices.filter(invoice => invoice.clientId === clientId);
   };
 
-  // Estatísticas
   const getStats = () => {
     const totalClients = clients.length;
     const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active').length;
@@ -349,7 +316,6 @@ export const useFirestore = () => {
     const pendingRevenue = invoices
       .filter(invoice => invoice.status === 'pending')
       .reduce((sum, invoice) => sum + (invoice.amount || 0), 0);
-
     return {
       totalClients,
       activeSubscriptions,
@@ -387,7 +353,7 @@ export const useFirestore = () => {
 
     // Funções auxiliares
     getInvoicesByDateRange,
-    generateMonthlyInvoices,
+    generateMonthlyInvoices, // Corrigido para corresponder à chamada
     createExampleData,
 
     // Getters

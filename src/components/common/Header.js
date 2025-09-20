@@ -1,4 +1,3 @@
-// src/components/common/Header.js
 import React from 'react';
 import { ROUTES } from '../../utils/constants';
 
@@ -11,11 +10,8 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
   };
 
   const getNavButtonClass = (view) => {
-    const baseClass = "flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition";
-    const activeClass = "bg-primary-100 text-primary-700"; // Usa a nova cor primária
-    const inactiveClass = "text-gray-600 hover:text-gray-900 hover:bg-gray-100";
-    
-    return `${baseClass} ${currentView === view ? activeClass : inactiveClass}`;
+    const baseClass = "flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition duration-200";
+    return `${baseClass} ${currentView === view ? 'nav-active' : 'nav-inactive'}`;
   };
 
   const getUserDisplayName = () => {
@@ -30,10 +26,31 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
         <div className="flex items-center justify-between h-16">
           {/* Logo e Título */}
           <div className="flex items-center space-x-3">
-            <img src="/WhatsApp_Image_2025-09-20_at_14.40.27-removebg-preview.png" alt="Logo Conexão Delivery" className="h-8" />
-            <span className="hidden sm:inline text-xl font-bold text-gray-800">
-              Conexão Delivery
-            </span>
+            <img 
+              src="/logo.png" 
+              alt="Logo Conexão Delivery" 
+              className="h-10 w-auto"
+              onError={(e) => {
+                // Fallback se a imagem não carregar
+                e.target.style.display = 'none';
+                e.target.nextElementSibling.style.display = 'flex';
+              }}
+            />
+            {/* Fallback logo */}
+            <div 
+              className="h-10 w-10 bg-primary-500 rounded-lg flex items-center justify-center"
+              style={{ display: 'none' }}
+            >
+              <span className="text-white font-bold text-sm">CD</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold text-gray-900">
+                Conexão Delivery
+              </span>
+              <span className="text-xs text-gray-500 hidden lg:block">
+                Sistema de Cobranças
+              </span>
+            </div>
           </div>
             
           {/* Navegação */}
@@ -73,10 +90,10 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
           <div className="flex items-center space-x-4">
             <button
               onClick={onCreateSampleData}
-              className="hidden sm:inline-flex items-center bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition duration-200"
+              className="btn-success hidden sm:inline-flex text-sm"
               title="Criar dados de exemplo para testar o sistema"
             >
-              <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
               </svg>
               Dados Exemplo
@@ -101,9 +118,9 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
             
             <button
               onClick={handleLogout}
-              className="bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 transition duration-200 text-xs sm:text-sm"
+              className="btn-danger text-xs sm:text-sm"
             >
-              <svg className="w-4 h-4 inline sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
               </svg>
               <span className="hidden sm:inline">Sair</span>
@@ -143,6 +160,16 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
               <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
             </svg>
             <span>Relatórios</span>
+          </button>
+          
+          <button
+            onClick={onCreateSampleData}
+            className="btn-success w-full justify-start text-sm mt-2"
+          >
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Dados Exemplo
           </button>
         </div>
       </div>

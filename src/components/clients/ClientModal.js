@@ -1,15 +1,10 @@
-// src/components/clients/ClientModal.js
 import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import { formatCPF, formatPhone, removeFormatting, isValidEmail, isValidCPF } from '../../utils/formatters';
 
 const ClientModal = ({ isOpen, onClose, onSave, client }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    cpf: '',
-    pix: ''
+    name: '', email: '', phone: '', cpf: '', pix: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -24,13 +19,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
         pix: client.pix || ''
       });
     } else {
-      setFormData({ 
-        name: '', 
-        email: '', 
-        phone: '', 
-        cpf: '', 
-        pix: '' 
-      });
+      setFormData({ name: '', email: '', phone: '', cpf: '', pix: '' });
     }
     setErrors({});
   }, [client, isOpen]);
@@ -39,22 +28,18 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
     const { name, value } = e.target;
     let formattedValue = value;
     
-    // Aplicar formatações específicas
     if (name === 'phone') {
       formattedValue = formatPhone(value);
     } else if (name === 'cpf') {
       formattedValue = formatCPF(value);
     } else if (name === 'name') {
-      // Capitalizar primeira letra de cada palavra
       formattedValue = value.replace(/\b\w/g, l => l.toUpperCase());
     } else if (name === 'email') {
-      // Email sempre em minúscula
       formattedValue = value.toLowerCase();
     }
     
     setFormData(prev => ({ ...prev, [name]: formattedValue }));
     
-    // Limpar erro específico quando usuário começa a digitar
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -63,26 +48,22 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
   const validate = () => {
     const newErrors = {};
     
-    // Nome obrigatório e mínimo 2 caracteres
     if (!formData.name.trim()) {
       newErrors.name = 'Nome é obrigatório';
     } else if (formData.name.trim().length < 2) {
       newErrors.name = 'Nome deve ter pelo menos 2 caracteres';
     }
     
-    // Email obrigatório e válido
     if (!formData.email.trim()) {
       newErrors.email = 'Email é obrigatório';
     } else if (!isValidEmail(formData.email)) {
       newErrors.email = 'Email inválido';
     }
     
-    // CPF - se preenchido, deve ser válido
     if (formData.cpf && !isValidCPF(formData.cpf)) {
       newErrors.cpf = 'CPF inválido';
     }
     
-    // Telefone - se preenchido, deve ter formato mínimo
     if (formData.phone && removeFormatting(formData.phone).length < 10) {
       newErrors.phone = 'Telefone deve ter pelo menos 10 dígitos';
     }
@@ -94,9 +75,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) return;
 
     setLoading(true);
     
@@ -126,24 +105,20 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
       onClose={onClose}
       title={client ? 'Editar Cliente' : 'Novo Cliente'}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Erro geral */}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Erro geral com novo estilo */}
         {errors.general && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <div className="ml-3">
-                <p className="text-sm text-red-800">{errors.general}</p>
-              </div>
-            </div>
+          <div className="alert alert-error">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            {errors.general}
           </div>
         )}
 
-        {/* Nome */}
+        {/* Nome com novo estilo */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Nome Completo *
           </label>
           <input 
@@ -151,13 +126,13 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
             name="name" 
             value={formData.name} 
             onChange={handleChange}
-            className={`form-input ${errors.name ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+            className={`form-input ${errors.name ? 'form-input-error' : ''}`}
             placeholder="Digite o nome completo"
             disabled={loading}
           />
           {errors.name && (
-            <p className="text-red-500 text-xs mt-1 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+            <p className="form-error">
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
               {errors.name}
@@ -165,99 +140,112 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
           )}
         </div>
 
-        {/* Email */}
+        {/* Email com ícone */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Email *
           </label>
-          <input 
-            type="email" 
-            name="email" 
-            value={formData.email} 
-            onChange={handleChange}
-            className={`form-input ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
-            placeholder="exemplo@email.com"
-            disabled={loading}
-          />
-          {errors.email && (
-            <p className="text-red-500 text-xs mt-1 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          <div className="input-group">
+            <div className="input-group-text">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
               </svg>
-              {errors.email}
-            </p>
+            </div>
+            <input 
+              type="email" 
+              name="email" 
+              value={formData.email} 
+              onChange={handleChange}
+              className={`form-input input-group-input ${errors.email ? 'form-input-error' : ''}`}
+              placeholder="exemplo@email.com"
+              disabled={loading}
+            />
+          </div>
+          {errors.email && (
+            <p className="form-error">{errors.email}</p>
           )}
         </div>
 
         {/* Telefone */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Telefone
           </label>
-          <input 
-            type="text" 
-            name="phone" 
-            value={formData.phone} 
-            onChange={handleChange}
-            className={`form-input ${errors.phone ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
-            placeholder="(11) 99999-9999"
-            disabled={loading}
-          />
-          {errors.phone && (
-            <p className="text-red-500 text-xs mt-1 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          <div className="input-group">
+            <div className="input-group-text">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
-              {errors.phone}
-            </p>
+            </div>
+            <input 
+              type="text" 
+              name="phone" 
+              value={formData.phone} 
+              onChange={handleChange}
+              className={`form-input input-group-input ${errors.phone ? 'form-input-error' : ''}`}
+              placeholder="(11) 99999-9999"
+              disabled={loading}
+            />
+          </div>
+          {errors.phone && (
+            <p className="form-error">{errors.phone}</p>
           )}
         </div>
 
         {/* CPF */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             CPF
           </label>
-          <input 
-            type="text" 
-            name="cpf" 
-            value={formData.cpf} 
-            onChange={handleChange}
-            className={`form-input ${errors.cpf ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
-            placeholder="000.000.000-00"
-            disabled={loading}
-          />
-          {errors.cpf && (
-            <p className="text-red-500 text-xs mt-1 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          <div className="input-group">
+            <div className="input-group-text">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
-              {errors.cpf}
-            </p>
+            </div>
+            <input 
+              type="text" 
+              name="cpf" 
+              value={formData.cpf} 
+              onChange={handleChange}
+              className={`form-input input-group-input ${errors.cpf ? 'form-input-error' : ''}`}
+              placeholder="000.000.000-00"
+              disabled={loading}
+            />
+          </div>
+          {errors.cpf && (
+            <p className="form-error">{errors.cpf}</p>
           )}
         </div>
 
         {/* PIX */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Chave PIX
           </label>
-          <input 
-            type="text" 
-            name="pix" 
-            value={formData.pix} 
-            onChange={handleChange}
-            className="form-input"
-            placeholder="Email, telefone, CPF ou chave aleatória"
-            disabled={loading}
-          />
+          <div className="input-group">
+            <div className="input-group-text">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            <input 
+              type="text" 
+              name="pix" 
+              value={formData.pix} 
+              onChange={handleChange}
+              className="form-input input-group-input"
+              placeholder="Email, telefone, CPF ou chave aleatória"
+              disabled={loading}
+            />
+          </div>
           <p className="text-xs text-gray-500 mt-1">
             Pode ser email, telefone, CPF ou chave aleatória
           </p>
         </div>
 
-        {/* Botões */}
-        <div className="pt-4 flex justify-end space-x-3">
+        {/* Botões atualizados */}
+        <div className="flex justify-end space-x-3 pt-6">
           <button 
             type="button" 
             onClick={onClose}
@@ -273,14 +261,11 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
           >
             {loading ? (
               <div className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <div className="loading-spinner w-4 h-4 mr-2"></div>
                 Salvando...
               </div>
             ) : (
-              'Salvar Cliente'
+              client ? 'Atualizar Cliente' : 'Salvar Cliente'
             )}
           </button>
         </div>

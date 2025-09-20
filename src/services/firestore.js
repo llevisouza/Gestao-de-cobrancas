@@ -10,7 +10,8 @@ import {
   where,
   writeBatch,
   serverTimestamp,
-  onSnapshot // Adicione esta importação
+  onSnapshot,
+  limit // Importar 'limit'
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -292,6 +293,14 @@ export const seedService = {
   // Criar dados de exemplo
   async createSampleData() {
     try {
+      // CORREÇÃO: Adicionar verificação para não duplicar dados
+      const checkQuery = query(collection(db, COLLECTIONS.CLIENTS), limit(1));
+      const existingClients = await getDocs(checkQuery);
+      if (!existingClients.empty) {
+        console.log('⚠️ Dados de exemplo já existem. Nenhuma ação foi tomada.');
+        return { success: false, error: 'Dados de exemplo já existem.' };
+      }
+
       console.log('🌱 Iniciando criação de dados de exemplo...');
       // Clientes de exemplo
       const sampleClients = [

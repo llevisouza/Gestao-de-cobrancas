@@ -1,12 +1,13 @@
 // src/components/dashboard/InvoiceTable.js
 import React from 'react';
 import { formatDate, formatCurrency } from '../../utils/formatters';
-import { INVOICE_STATUS_LABELS } from '../../utils/constants';
+import { INVOICE_STATUS, INVOICE_STATUS_LABELS } from '../../utils/constants';
 import { invoiceService } from '../../services/firestore';
 
 const InvoiceTable = ({ invoices, setInvoices }) => {
   const handleStatusChange = async (invoiceId, newStatus) => {
     // Atualização otimista
+    const originalStatus = invoices.find(i => i.id === invoiceId)?.status;
     setInvoices(prev => prev.map(inv =>
       inv.id === invoiceId ? { ...inv, status: newStatus } : inv
     ));
@@ -16,7 +17,7 @@ const InvoiceTable = ({ invoices, setInvoices }) => {
       if (!result.success) {
         // Reverter se falhou
         setInvoices(prev => prev.map(inv =>
-          inv.id === invoiceId ? { ...inv, status: invoices.find(i => i.id === invoiceId)?.status } : inv
+          inv.id === invoiceId ? { ...inv, status: originalStatus } : inv
         ));
         alert('Erro ao atualizar status da fatura');
       }
@@ -24,46 +25,26 @@ const InvoiceTable = ({ invoices, setInvoices }) => {
       console.error('Erro ao atualizar fatura:', error);
       // Reverter em caso de erro
       setInvoices(prev => prev.map(inv =>
-        inv.id === invoiceId ? { ...inv, status: invoices.find(i => i.id === invoiceId)?.status } : inv
+        inv.id === invoiceId ? { ...inv, status: originalStatus } : inv
       ));
       alert('Erro ao atualizar status da fatura');
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusBadge = (status) => {
     const colors = {
-      'pending': 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      'paid': 'bg-green-100 text-green-800 border-green-300',
-      'overdue': 'bg-red-100 text-red-800 border-red-300'
+      [INVOICE_STATUS.PENDING]: 'badge-warning',
+      [INVOICE_STATUS.PAID]: 'badge-success',
+      [INVOICE_STATUS.OVERDUE]: 'badge-danger'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-300';
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'paid':
-        return (
-          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-          </svg>
-        );
-      case 'overdue':
-        return (
-          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-        );
-      case 'pending':
-      default:
-        return (
-          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-          </svg>
-        );
-    }
+    return (
+        <span className={`badge ${colors[status] || 'badge-info'}`}>
+            {INVOICE_STATUS_LABELS[status] || status}
+        </span>
+    );
   };
   
-  if (invoices.length === 0) {
+  if (!invoices || invoices.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-8">
         <div className="text-center text-gray-500">
@@ -92,7 +73,7 @@ const InvoiceTable = ({ invoices, setInvoices }) => {
               Valor
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Status
+               Status
             </th>
           </tr>
         </thead>
@@ -120,42 +101,44 @@ const InvoiceTable = ({ invoices, setInvoices }) => {
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900">{formatDate(invoice.dueDate)}</div>
-                <div className="text-sm text-gray-500">
+                 <div className="text-sm text-gray-500">
                   {(() => {
+                    // CORREÇÃO: Lógica de cálculo de dias
                     const today = new Date();
+                    today.setHours(0, 0, 0, 0);
                     const dueDate = new Date(invoice.dueDate);
-                    const diffTime = dueDate.getTime() - today.getTime();
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    dueDate.setHours(0, 0, 0, 0);
                     
-                    if (diffDays < 0) {
-                      return `${Math.abs(diffDays)} dias em atraso`;
-                    } else if (diffDays === 0) {
-                      return 'Vence hoje';
-                    } else if (diffDays === 1) {
-                      return 'Vence amanhã';
-                    } else {
-                      return `${diffDays} dias restantes`;
-                    }
+                    const diffTime = dueDate.getTime() - today.getTime();
+                    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (invoice.status === 'paid') return 'Pago';
+                    if (diffDays < 0) return `${Math.abs(diffDays)} dias em atraso`;
+                    if (diffDays === 0) return 'Vence hoje';
+                    if (diffDays === 1) return 'Vence amanhã';
+                    return `${diffDays} dias restantes`;
                   })()}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">
-                  {formatCurrency(invoice.amount)}
+                   {formatCurrency(invoice.amount)}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <select
-                  value={invoice.status}
-                  onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${getStatusColor(invoice.status)}`}
-                >
-                  {Object.entries(INVOICE_STATUS_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                {/* CORREÇÃO: Lógica de exibição do status */}
+                {invoice.status === INVOICE_STATUS.PENDING ? (
+                  <select
+                    value={invoice.status}
+                    onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
+                    className="form-select"
+                  >
+                    <option value={INVOICE_STATUS.PENDING}>Pendente</option>
+                    <option value={INVOICE_STATUS.PAID}>Pago</option>
+                  </select>
+                ) : (
+                  getStatusBadge(invoice.status)
+                )}
               </td>
             </tr>
           ))}

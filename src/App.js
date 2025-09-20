@@ -15,6 +15,7 @@ import ReportsPage from './components/reports/ReportsPage';
 
 // Estilos
 import './styles/globals.css';
+import './styles/components.css'; // <-- ADICIONE ESTA LINH
 
 function App() {
   const { user, loading: authLoading, signIn, logout } = useFirebaseAuth();

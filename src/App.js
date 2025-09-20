@@ -15,7 +15,7 @@ import ReportsPage from './components/reports/ReportsPage';
 
 // Estilos
 import './styles/globals.css';
-import './styles/components.css'; // <-- ADICIONE ESTA LINH
+import './styles/components.css';
 
 function App() {
   const { user, loading: authLoading, signIn, logout } = useFirebaseAuth();
@@ -124,9 +124,9 @@ function App() {
         onCreateSampleData={handleCreateSampleData}
       />
 
-      <main className="container mx-auto px-4 py-8">
+      <main>
         {dataLoading ? (
-          <div className="text-center py-12">
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <LoadingSpinner size="medium" message="Carregando dados..." />
           </div>
         ) : (

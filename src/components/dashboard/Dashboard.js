@@ -1,11 +1,9 @@
 // src/components/dashboard/Dashboard.js
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import KPICards from './KPICards';
 import InvoiceTable from './InvoiceTable';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { formatCurrency } from '../../utils/formatters';
 
 const Dashboard = () => {
   const { 
@@ -16,32 +14,6 @@ const Dashboard = () => {
     createExampleData,
     generateInvoicesForMonth 
   } = useFirestore();
-
-  const [kpis, setKpis] = useState({
-    totalClients: 0,
-    activeSubscriptions: 0,
-    monthlyRevenue: 0,
-    pendingInvoices: 0
-  });
-
-  // Calcular KPIs
-  useEffect(() => {
-    const activeSubsCount = subscriptions.filter(sub => sub.status === 'active').length;
-    
-    // CORREÇÃO: Alterado de 'sub.value' para 'sub.amount'
-    const monthlyRev = subscriptions
-      .filter(sub => sub.status === 'active')
-      .reduce((sum, sub) => sum + parseFloat(sub.amount || 0), 0);
-    
-    const pendingInvs = invoices.filter(inv => inv.status === 'pending').length;
-    
-    setKpis({
-      totalClients: clients.length,
-      activeSubscriptions: activeSubsCount,
-      monthlyRevenue: monthlyRev,
-      pendingInvoices: pendingInvs
-    });
-  }, [clients, subscriptions, invoices]);
 
   const handleCreateExampleData = async () => {
     try {
@@ -66,12 +38,16 @@ const Dashboard = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner size="large" message="Carregando dashboard..." />
+      </div>
+    );
   }
 
   return (
     <div className="dashboard">
-      <div className="container">
+      <div className="dashboard-container">
         <div className="dashboard-header">
           <h1 className="dashboard-title">Dashboard</h1>
           <p className="dashboard-subtitle">
@@ -81,21 +57,21 @@ const Dashboard = () => {
           <div className="dashboard-actions">
             <button 
               onClick={handleCreateExampleData}
-              className="btn btn-secondary"
+              className="btn-secondary"
             >
               📊 Dados Exemplo
             </button>
             <button 
               onClick={handleGenerateInvoices}
-              className="btn btn-primary"
+              className="btn-primary"
             >
               🧾 Gerar Faturas
             </button>
           </div>
         </div>
+
         <KPICards invoices={invoices} clients={clients} />
-        
-         <InvoiceTable invoices={invoices} clients={clients} />
+        <InvoiceTable invoices={invoices} clients={clients} />
       </div>
     </div>
   );

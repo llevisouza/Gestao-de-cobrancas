@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
@@ -16,12 +17,6 @@ export const useFirebaseAuth = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
-      
-      if (user) {
-        console.log('✅ Usuário autenticado:', user.email);
-      } else {
-        console.log('🔐 Usuário não autenticado');
-      }
     });
 
     return () => unsubscribe();
@@ -30,30 +25,25 @@ export const useFirebaseAuth = () => {
   const signIn = async (email, password) => {
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
-      return { success: true };
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      return { success: true, user: result.user };
     } catch (error) {
-      console.error('❌ Erro no login:', error);
-      return { 
-        success: false, 
-        error: getErrorMessage(error.code) 
-      };
+      console.error('Erro no login:', error);
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
-  const signUp = async (email, password) => {
+  const signInWithGoogle = async () => {
     try {
       setLoading(true);
-      await createUserWithEmailAndPassword(auth, email, password);
-      return { success: true };
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return { success: true, user: result.user };
     } catch (error) {
-      console.error('❌ Erro no cadastro:', error);
-      return { 
-        success: false, 
-        error: getErrorMessage(error.code) 
-      };
+      console.error('Erro no login com Google:', error);
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
@@ -63,14 +53,10 @@ export const useFirebaseAuth = () => {
     try {
       setLoading(true);
       await signOut(auth);
-      console.log('👋 Usuário deslogado');
       return { success: true };
     } catch (error) {
-      console.error('❌ Erro no logout:', error);
-      return { 
-        success: false, 
-        error: error.message 
-      };
+      console.error('Erro no logout:', error);
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
@@ -80,7 +66,7 @@ export const useFirebaseAuth = () => {
     user,
     loading,
     signIn,
-    signUp,
+    signInWithGoogle,
     logout
   };
 };

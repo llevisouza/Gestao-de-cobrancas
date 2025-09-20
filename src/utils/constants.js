@@ -178,3 +178,104 @@ export const VALIDATION = {
   MIN_AMOUNT: 0.01,
   MAX_AMOUNT: 999999.99
 };
+
+export const formatCurrency = (value) => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 'R$ 0,00';
+  }
+  
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(parseFloat(value));
+};
+
+export const formatDate = (date) => {
+  if (!date) return '-';
+  
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '-';
+    
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch (error) {
+    console.error('Erro ao formatar data:', error);
+    return '-';
+  }
+};
+
+export const formatPhone = (phone) => {
+  if (!phone) return '';
+  
+  // Remove tudo que não é número
+  const numbers = phone.replace(/\D/g, '');
+  
+  // Formata o telefone
+  if (numbers.length <= 10) {
+    // Telefone fixo: (11) 1234-5678
+    return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  } else {
+    // Celular: (11) 91234-5678
+    return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  }
+};
+
+export const formatCPF = (cpf) => {
+  if (!cpf) return '';
+  
+  // Remove tudo que não é número
+  const numbers = cpf.replace(/\D/g, '');
+  
+  // Limita a 11 dígitos
+  const limited = numbers.slice(0, 11);
+  
+  // Aplica a formatação
+  return limited.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
+
+export const removeFormatting = (text) => {
+  if (!text) return '';
+  return text.replace(/\D/g, '');
+};
+
+export const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+export const isValidCPF = (cpf) => {
+  if (!cpf) return false;
+  
+  const numbers = removeFormatting(cpf);
+  
+  // CPF deve ter 11 dígitos
+  if (numbers.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(numbers)) return false;
+  
+  // Validação do algoritmo do CPF
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(numbers[i]) * (10 - i);
+  }
+  
+  let remainder = sum % 11;
+  let digit1 = remainder < 2 ? 0 : 11 - remainder;
+  
+  if (parseInt(numbers[9]) !== digit1) return false;
+  
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(numbers[i]) * (11 - i);
+  }
+  
+  remainder = sum % 11;
+  let digit2 = remainder < 2 ? 0 : 11 - remainder;
+  
+  return parseInt(numbers[10]) === digit2;
+};

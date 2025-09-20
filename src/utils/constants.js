@@ -1,5 +1,21 @@
 // src/utils/constants.js
 
+// Configurações da aplicação
+export const APP_CONFIG = {
+  name: 'Sistema de Gestão de Cobranças',
+  version: '1.0.0',
+  author: 'Sua Empresa'
+};
+
+// Rotas da aplicação
+export const ROUTES = {
+  DASHBOARD: '/dashboard',
+  CLIENTS: '/clients',
+  REPORTS: '/reports',
+  SUBSCRIPTIONS: '/subscriptions',
+  INVOICES: '/invoices'
+};
+
 // Status das faturas
 export const INVOICE_STATUS = {
   PENDING: 'pending',
@@ -7,81 +23,158 @@ export const INVOICE_STATUS = {
   OVERDUE: 'overdue'
 };
 
-// Status das assinaturas
-export const SUBSCRIPTION_STATUS = {
-  ACTIVE: 'active',
-  INACTIVE: 'inactive'
+// Cores dos status das faturas
+export const INVOICE_STATUS_COLORS = {
+  pending: 'warning',
+  paid: 'success',
+  overdue: 'danger'
 };
+
+// Labels dos status das faturas
+export const INVOICE_STATUS_LABELS = {
+  pending: 'Pendente',
+  paid: 'Pago',
+  overdue: 'Vencido'
+};
+
+// Status das assinaturas - OBJETO
+export const SUBSCRIPTION_STATUS_OBJ = {
+  ACTIVE: 'active',
+  PAUSED: 'paused',
+  CANCELLED: 'cancelled'
+};
+
+// Status das assinaturas - ARRAY para select
+export const SUBSCRIPTION_STATUS = [
+  { value: 'active', label: 'Ativa', color: 'success' },
+  { value: 'paused', label: 'Pausada', color: 'warning' },
+  { value: 'cancelled', label: 'Cancelada', color: 'danger' }
+];
+
+// Ciclos de cobrança
+export const BILLING_CYCLES = [
+  { value: 'monthly', label: 'Mensal' },
+  { value: 'quarterly', label: 'Trimestral' },
+  { value: 'semiannual', label: 'Semestral' },
+  { value: 'annual', label: 'Anual' }
+];
+
+// Tipos de serviços pré-definidos
+export const SERVICE_TYPES = [
+  {
+    name: 'Website Básico',
+    description: 'Manutenção de website básico',
+    defaultValue: '300.00'
+  },
+  {
+    name: 'Website Avançado',
+    description: 'Manutenção completa com atualizações',
+    defaultValue: '500.00'
+  },
+  {
+    name: 'E-commerce',
+    description: 'Gestão completa de loja virtual',
+    defaultValue: '800.00'
+  },
+  {
+    name: 'SEO Básico',
+    description: 'Otimização SEO básica',
+    defaultValue: '400.00'
+  },
+  {
+    name: 'SEO Premium',
+    description: 'Otimização SEO completa com relatórios',
+    defaultValue: '800.00'
+  },
+  {
+    name: 'Marketing Digital',
+    description: 'Gestão de redes sociais e campanhas',
+    defaultValue: '600.00'
+  },
+  {
+    name: 'Consultoria',
+    description: 'Consultoria estratégica personalizada',
+    defaultValue: '1200.00'
+  },
+  {
+    name: 'Hospedagem',
+    description: 'Hospedagem com suporte técnico',
+    defaultValue: '100.00'
+  },
+  {
+    name: 'Backup e Segurança',
+    description: 'Backup automático e monitoramento',
+    defaultValue: '150.00'
+  }
+];
 
 // Dias da semana
-export const DAYS_OF_WEEK = {
-  MONDAY: 'monday',
-  TUESDAY: 'tuesday',
-  WEDNESDAY: 'wednesday',
-  THURSDAY: 'thursday',
-  FRIDAY: 'friday',
-  SATURDAY: 'saturday',
-  SUNDAY: 'sunday'
-};
+export const DAYS_OF_WEEK = [
+  'domingo', 'segunda', 'terça', 'quarta', 
+  'quinta', 'sexta', 'sábado'
+];
 
-// Labels em português para os dias da semana
+// Labels dos dias da semana
 export const DAYS_OF_WEEK_LABELS = {
-  [DAYS_OF_WEEK.MONDAY]: 'Segunda-feira',
-  [DAYS_OF_WEEK.TUESDAY]: 'Terça-feira',
-  [DAYS_OF_WEEK.WEDNESDAY]: 'Quarta-feira',
-  [DAYS_OF_WEEK.THURSDAY]: 'Quinta-feira',
-  [DAYS_OF_WEEK.FRIDAY]: 'Sexta-feira',
-  [DAYS_OF_WEEK.SATURDAY]: 'Sábado',
-  [DAYS_OF_WEEK.SUNDAY]: 'Domingo'
+  domingo: 'Domingo',
+  segunda: 'Segunda-feira',
+  terça: 'Terça-feira',
+  quarta: 'Quarta-feira',
+  quinta: 'Quinta-feira',
+  sexta: 'Sexta-feira',
+  sábado: 'Sábado'
 };
 
-// Labels em português para status das faturas
-export const INVOICE_STATUS_LABELS = {
-  [INVOICE_STATUS.PENDING]: 'Pendente',
-  [INVOICE_STATUS.PAID]: 'Pago',
-  [INVOICE_STATUS.OVERDUE]: 'Vencida'
+// Períodos para relatórios
+export const REPORT_PERIODS = {
+  TODAY: 'today',
+  WEEK: 'week',
+  MONTH: 'month',
+  QUARTER: 'quarter',
+  YEAR: 'year',
+  CUSTOM: 'custom'
 };
 
-// Cores para status das faturas
-export const INVOICE_STATUS_COLORS = {
-  [INVOICE_STATUS.PENDING]: 'bg-yellow-100 text-yellow-800',
-  [INVOICE_STATUS.PAID]: 'bg-green-100 text-green-800',
-  [INVOICE_STATUS.OVERDUE]: 'bg-red-100 text-red-800'
+// Labels dos períodos
+export const REPORT_PERIOD_LABELS = {
+  today: 'Hoje',
+  week: 'Esta Semana',
+  month: 'Este Mês',
+  quarter: 'Este Trimestre',
+  year: 'Este Ano',
+  custom: 'Período Personalizado'
 };
 
-// Rotas da aplicação
-export const ROUTES = {
-  DASHBOARD: 'dashboard',
-  CLIENTS: 'clients',
-  REPORTS: 'reports'
+// Cores do sistema
+export const COLORS = {
+  primary: '#2563eb',
+  success: '#16a34a',
+  warning: '#d97706',
+  danger: '#dc2626',
+  info: '#0891b2',
+  gray: '#6b7280'
 };
 
-// Mensagens do sistema
-export const MESSAGES = {
-  SUCCESS: {
-    CLIENT_CREATED: 'Cliente criado com sucesso!',
-    CLIENT_UPDATED: 'Cliente atualizado com sucesso!',
-    CLIENT_DELETED: 'Cliente excluído com sucesso!',
-    SUBSCRIPTION_CREATED: 'Assinatura criada com sucesso!',
-    INVOICE_CREATED: 'Fatura criada com sucesso!',
-    INVOICE_UPDATED: 'Status da fatura atualizado com sucesso!',
-    SAMPLE_DATA_CREATED: 'Dados de exemplo criados com sucesso!'
-  },
-  ERROR: {
-    GENERIC: 'Ocorreu um erro. Tente novamente.',
-    NO_CLIENTS: 'Cadastre pelo menos um cliente primeiro',
-    DELETE_CONFIRMATION: 'Tem certeza que deseja excluir este cliente? Todas as assinaturas e faturas relacionadas serão removidas.',
-    SAMPLE_DATA_EXISTS: 'Dados de exemplo já existem!',
-    REPORT_DATE_REQUIRED: 'Selecione um período para gerar o relatório'
-  }
+// Configurações de paginação
+export const PAGINATION = {
+  DEFAULT_PAGE_SIZE: 10,
+  PAGE_SIZE_OPTIONS: [5, 10, 20, 50, 100]
 };
 
-// Configurações da aplicação
-export const APP_CONFIG = {
-  NAME: 'Sistema de Cobranças',
-  VERSION: '1.0.0',
-  DEFAULT_INVOICE_DUE_DAYS: 2,
-  DEFAULT_CURRENCY: 'BRL',
-  DATE_FORMAT: 'pt-BR',
-  ITEMS_PER_PAGE: 10
+// Formatos de data
+export const DATE_FORMATS = {
+  SHORT: 'DD/MM/YYYY',
+  LONG: 'DD/MM/YYYY HH:mm',
+  ISO: 'YYYY-MM-DD',
+  DISPLAY: 'dd/MM/yyyy'
+};
+
+// Configurações de validação
+export const VALIDATION = {
+  EMAIL_REGEX: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  PHONE_REGEX: /^[\(\)\s\-\+\d]+$/,
+  MIN_PASSWORD_LENGTH: 6,
+  MAX_TEXT_LENGTH: 255,
+  MIN_AMOUNT: 0.01,
+  MAX_AMOUNT: 999999.99
 };

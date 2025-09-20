@@ -1,117 +1,109 @@
-// src/components/clients/ClientsPage.js
 import React, { useState } from 'react';
+import { useFirestore } from '../../hooks/useFirestore';
 import ClientTable from './ClientTable';
 import ClientModal from './ClientModal';
 import SubscriptionModal from './SubscriptionModal';
-import { clientService, subscriptionService } from '../../services/firestore';
-import { MESSAGES } from '../../utils/constants';
+import LoadingSpinner from '../common/LoadingSpinner';
 
-const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) => {
+const ClientsPage = () => {
+  const { clients, subscriptions, loading } = useFirestore();
+  const [searchTerm, setSearchTerm] = useState('');
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
-  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedSubscription, setSelectedSubscription] = useState(null);
 
-  const handleOpenClientModal = (client = null) => {
+  // Filtrar clientes por termo de busca
+  const filteredClients = clients.filter(client =>
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.phone.includes(searchTerm)
+  );
+
+  const handleEditClient = (client) => {
     setSelectedClient(client);
     setIsClientModalOpen(true);
   };
 
-  const handleCloseClientModal = () => {
+  const handleNewClient = () => {
     setSelectedClient(null);
-    setIsClientModalOpen(false);
+    setIsClientModalOpen(true);
   };
 
-  const handleOpenSubModal = (client) => {
-    const existingSub = subscriptions.find(sub => sub.clientId === client.id);
+  const handleNewSubscription = (client) => {
     setSelectedClient(client);
-    setSelectedSubscription(existingSub || null);
-    setIsSubModalOpen(true);
+    setSelectedSubscription(null);
+    setIsSubscriptionModalOpen(true);
   };
 
-  const handleCloseSubModal = () => {
+  const handleEditSubscription = (subscription, client) => {
+    setSelectedClient(client);
+    setSelectedSubscription(subscription);
+    setIsSubscriptionModalOpen(true);
+  };
+
+  const closeModals = () => {
+    setIsClientModalOpen(false);
+    setIsSubscriptionModalOpen(false);
     setSelectedClient(null);
     setSelectedSubscription(null);
-    setIsSubModalOpen(false);
   };
 
-  const handleSaveClient = async (clientData) => {
-    if (selectedClient) { // Update
-      const result = await clientService.update(selectedClient.id, clientData);
-      if (result.success) {
-        setClients(prev => prev.map(c => c.id === selectedClient.id ? { ...c, ...clientData } : c));
-        alert(MESSAGES.SUCCESS.CLIENT_UPDATED);
-      }
-    } else { // Create
-      const result = await clientService.create(clientData);
-      if (result.success) {
-        setClients(prev => [{ id: result.id, ...clientData }, ...prev]);
-        alert(MESSAGES.SUCCESS.CLIENT_CREATED);
-      }
-    }
-    handleCloseClientModal();
-  };
-
-  const handleDeleteClient = async (clientId) => {
-    if (window.confirm(MESSAGES.ERROR.DELETE_CONFIRMATION)) {
-      const result = await clientService.delete(clientId);
-      if (result.success) {
-        setClients(prev => prev.filter(c => c.id !== clientId));
-        alert(MESSAGES.SUCCESS.CLIENT_DELETED);
-      }
-    }
-  };
-
-  const handleSaveSubscription = async (subData) => {
-    if (selectedSubscription) { // Update
-      const result = await subscriptionService.update(selectedSubscription.id, subData);
-      if (result.success) {
-        setSubscriptions(prev => prev.map(s => s.id === selectedSubscription.id ? { ...s, ...subData } : s));
-      }
-    } else { // Create
-      const result = await subscriptionService.create(subData);
-      if (result.success) {
-        setSubscriptions(prev => [{ id: result.id, ...subData }, ...prev]);
-      }
-    }
-    handleCloseSubModal();
-  };
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Gerenciar Clientes</h1>
-        <button
-          onClick={() => handleOpenClientModal()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Adicionar Cliente
-        </button>
-      </div>
+    <div className="clients-page">
+      <div className="container">
+        <div className="clients-header">
+          <h1 className="clients-title">Clientes</h1>
+          <div className="clients-actions">
+            <button 
+              onClick={handleNewClient}
+              className="btn btn-primary"
+            >
+              👤 Novo Cliente
+            </button>
+          </div>
+        </div>
 
-      <ClientTable
-        clients={clients}
-        onEdit={handleOpenClientModal}
-        onDelete={handleDeleteClient}
-        onManageSubscription={handleOpenSubModal}
-      />
+        <div className="clients-search">
+          <input
+            type="text"
+            placeholder="Buscar por nome, email ou telefone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="form-input"
+          />
+          <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            {filteredClients.length} de {clients.length} clientes
+          </div>
+        </div>
 
-      <ClientModal
-        isOpen={isClientModalOpen}
-        onClose={handleCloseClientModal}
-        onSave={handleSaveClient}
-        client={selectedClient}
-      />
-
-      {selectedClient && (
-        <SubscriptionModal
-          isOpen={isSubModalOpen}
-          onClose={handleCloseSubModal}
-          onSave={handleSaveSubscription}
-          subscription={selectedSubscription}
-          client={selectedClient}
+        <ClientTable 
+          clients={filteredClients}
+          subscriptions={subscriptions}
+          onEditClient={handleEditClient}
+          onNewSubscription={handleNewSubscription}
+          onEditSubscription={handleEditSubscription}
         />
-      )}
+
+        {isClientModalOpen && (
+          <ClientModal
+            client={selectedClient}
+            onClose={closeModals}
+          />
+        )}
+
+        {isSubscriptionModalOpen && (
+          <SubscriptionModal
+            client={selectedClient}
+            subscription={selectedSubscription}
+            onClose={closeModals}
+          />
+        )}
+      </div>
     </div>
   );
 };

@@ -1,97 +1,187 @@
-// src/components/clients/ClientModal.js
 import React, { useState, useEffect } from 'react';
+import { useFirestore } from '../../hooks/useFirestore';
 import Modal from '../common/Modal';
-import { formatCPF, formatPhone, removeFormatting } from '../../utils/formatters';
 
-const ClientModal = ({ isOpen, onClose, onSave, client }) => {
+const ClientModal = ({ client, onClose }) => {
+  const { createClient, updateClient } = useFirestore();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    cpf: '',
-    pix: ''
+    address: '',
+    document: '',
+    notes: '',
+    status: 'active'
   });
-  const [errors, setErrors] = useState({});
+
+  const isEditing = !!client;
 
   useEffect(() => {
     if (client) {
       setFormData({
         name: client.name || '',
         email: client.email || '',
-        phone: client.phone ? formatPhone(client.phone) : '',
-        cpf: client.cpf ? formatCPF(client.cpf) : '',
-        pix: client.pix || ''
+        phone: client.phone || '',
+        address: client.address || '',
+        document: client.document || '',
+        notes: client.notes || '',
+        status: client.status || 'active'
       });
-    } else {
-      setFormData({ name: '', email: '', phone: '', cpf: '', pix: '' });
     }
-    setErrors({});
-  }, [client, isOpen]);
+  }, [client]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    let formattedValue = value;
-    if (name === 'phone') {
-      formattedValue = formatPhone(value);
-    } else if (name === 'cpf') {
-      formattedValue = formatCPF(value);
-    }
-    setFormData(prev => ({ ...prev, [name]: formattedValue }));
-  };
-
-  const validate = () => {
-    const newErrors = {};
-    if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório.';
-    if (!formData.email.trim()) newErrors.email = 'Email é obrigatório.';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email inválido.';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validate()) {
-      const dataToSave = {
-        ...formData,
-        phone: removeFormatting(formData.phone),
-        cpf: removeFormatting(formData.cpf),
-      };
-      onSave(dataToSave);
+    setLoading(true);
+
+    try {
+      // Validações básicas
+      if (!formData.name.trim()) {
+        alert('Nome é obrigatório');
+        return;
+      }
+      if (!formData.email.trim()) {
+        alert('Email é obrigatório');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        alert('Email inválido');
+        return;
+      }
+
+      if (isEditing) {
+        await updateClient(client.id, formData);
+      } else {
+        await createClient(formData);
+      }
+
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar cliente:', error);
+      alert('Erro ao salvar cliente: ' + error.message);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={client ? 'Editar Cliente' : 'Novo Cliente'}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Nome Completo *</label>
-          <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-          {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+    <Modal onClose={onClose}>
+      <div className="modal-header">
+        <h2 className="modal-title">
+          {isEditing ? 'Editar Cliente' : 'Novo Cliente'}
+        </h2>
+        <button onClick={onClose} className="modal-close">
+          ✕
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="modal-body">
+          <div className="form-group">
+            <label className="form-label">Nome *</label>
+            <input
+              type="text"
+              className="form-input"
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="Nome completo do cliente"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Email *</label>
+            <input
+              type="email"
+              className="form-input"
+              value={formData.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="email@exemplo.com"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Telefone</label>
+            <input
+              type="tel"
+              className="form-input"
+              value={formData.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              placeholder="(11) 99999-9999"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Documento (CPF/CNPJ)</label>
+            <input
+              type="text"
+              className="form-input"
+              value={formData.document}
+              onChange={(e) => handleChange('document', e.target.value)}
+              placeholder="000.000.000-00"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Endereço</label>
+            <input
+              type="text"
+              className="form-input"
+              value={formData.address}
+              onChange={(e) => handleChange('address', e.target.value)}
+              placeholder="Endereço completo"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Status</label>
+            <select
+              className="form-select"
+              value={formData.status}
+              onChange={(e) => handleChange('status', e.target.value)}
+            >
+              <option value="active">Ativo</option>
+              <option value="inactive">Inativo</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Observações</label>
+            <textarea
+              className="form-input"
+              rows="3"
+              value={formData.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              placeholder="Observações sobre o cliente..."
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email *</label>
-          <input type="email" name="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Telefone</label>
-          <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="(99) 99999-9999" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">CPF</label>
-          <input type="text" name="cpf" value={formData.cpf} onChange={handleChange} placeholder="000.000.000-00" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Chave PIX</label>
-          <input type="text" name="pix" value={formData.pix} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-        </div>
-        <div className="pt-4 flex justify-end space-x-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Salvar</button>
+
+        <div className="modal-footer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-secondary"
+            disabled={loading}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading}
+          >
+            {loading ? 'Salvando...' : (isEditing ? 'Atualizar' : 'Criar Cliente')}
+          </button>
         </div>
       </form>
     </Modal>

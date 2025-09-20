@@ -9,7 +9,8 @@ import {
   orderBy,
   where,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  onSnapshot // Adicione esta importação
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -56,6 +57,22 @@ export const clientService = {
       console.error('❌ Erro ao buscar clientes:', error);
       return [];
     }
+  },
+  
+  // CORREÇÃO: Adicionar o método 'subscribe'
+  subscribe(callback) {
+    const q = query(
+      collection(db, COLLECTIONS.CLIENTS),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const clients = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(clients);
+    });
+    return unsubscribe;
   },
 
   // Atualizar cliente
@@ -151,6 +168,22 @@ export const subscriptionService = {
     }
   },
 
+  // CORREÇÃO: Adicionar o método 'subscribe'
+  subscribe(callback) {
+    const q = query(
+      collection(db, COLLECTIONS.SUBSCRIPTIONS),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const subscriptions = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(subscriptions);
+    });
+    return unsubscribe;
+  },
+
   // Atualizar assinatura
   async update(subscriptionId, subscriptionData) {
     try {
@@ -212,6 +245,29 @@ export const invoiceService = {
       console.error('❌ Erro ao buscar faturas:', error);
       return [];
     }
+  },
+
+  // CORREÇÃO: Adicionar o método 'subscribe'
+  subscribe(callback) {
+    const q = query(
+      collection(db, COLLECTIONS.INVOICES),
+      orderBy('generationDate', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const invoices = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          generationDate: data.generationDate?.toDate?.() || data.generationDate,
+          dueDate: data.dueDate?.toDate?.() || data.dueDate,
+          createdAt: data.createdAt?.toDate?.() || data.createdAt,
+          updatedAt: data.updatedAt?.toDate?.() || data.updatedAt
+        };
+      });
+      callback(invoices);
+    });
+    return unsubscribe;
   },
 
   // Atualizar fatura

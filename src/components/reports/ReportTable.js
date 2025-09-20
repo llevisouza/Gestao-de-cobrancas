@@ -1,41 +1,166 @@
-// src/components/reports/ReportTable.js
-import React from 'react';
-import { formatDate, formatCurrency } from '../../utils/formatters';
-import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from '../../utils/constants';
+import React, { useState } from 'react';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const ReportTable = ({ data }) => {
-  if (data.length === 0) {
-    return <p className="text-center text-gray-500 py-8">Nenhum dado para o período selecionado.</p>;
+const ReportTable = ({ invoices, clients }) => {
+  const [sortConfig, setSortConfig] = useState({
+    key: 'dueDate',
+    direction: 'desc'
+  });
+
+  // Ordenar faturas
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    if (sortConfig.key === 'clientName') {
+      const clientA = clients.find(c => c.id === a.clientId)?.name || '';
+      const clientB = clients.find(c => c.id === b.clientId)?.name || '';
+      return sortConfig.direction === 'asc' 
+        ? clientA.localeCompare(clientB)
+        : clientB.localeCompare(clientA);
+    }
+
+    if (sortConfig.key === 'amount') {
+      const valueA = parseFloat(a.amount || 0);
+      const valueB = parseFloat(b.amount || 0);
+      return sortConfig.direction === 'asc' ? valueA - valueB : valueB - valueA;
+    }
+
+    if (sortConfig.key === 'dueDate') {
+      const dateA = new Date(a.dueDate);
+      const dateB = new Date(b.dueDate);
+      return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+    }
+
+    return 0;
+  });
+
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return '↕️';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
+  const getClientName = (clientId) => {
+    const client = clients.find(c => c.id === clientId);
+    return client ? client.name : 'Cliente não encontrado';
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'paid':
+        return 'badge-success';
+      case 'pending':
+        return 'badge-warning';
+      case 'overdue':
+        return 'badge-danger';
+      default:
+        return 'badge-info';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'paid':
+        return 'Paga';
+      case 'pending':
+        return 'Pendente';
+      case 'overdue':
+        return 'Vencida';
+      default:
+        return status;
+    }
+  };
+
+  if (invoices.length === 0) {
+    return (
+      <div className="card">
+        <div className="card-body" style={{ textAlign: 'center', padding: '3rem' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📊</div>
+          <h3>Nenhuma fatura encontrada</h3>
+          <p style={{ color: '#6b7280' }}>
+            Não há faturas para o período e filtros selecionados.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Geração</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimento</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {data.map(item => (
-            <tr key={item.id}>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.clientName}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(item.generationDate)}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(item.dueDate)}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(item.amount)}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${INVOICE_STATUS_COLORS[item.status]}`}>
-                  {INVOICE_STATUS_LABELS[item.status]}
-                </span>
-              </td>
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">
+          Faturas Encontradas ({invoices.length})
+        </h3>
+      </div>
+      
+      <div className="table-container">
+        <table className="table">
+          <thead>
+            <tr>
+              <th 
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleSort('clientName')}
+              >
+                Cliente {getSortIcon('clientName')}
+              </th>
+              <th>Descrição</th>
+              <th 
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleSort('amount')}
+              >
+                Valor {getSortIcon('amount')}
+              </th>
+              <th 
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleSort('dueDate')}
+              >
+                Vencimento {getSortIcon('dueDate')}
+              </th>
+              <th>Status</th>
+              <th>Data Pagamento</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sortedInvoices.map((invoice) => (
+              <tr key={invoice.id}>
+                <td>
+                  <div>
+                    <div style={{ fontWeight: '500' }}>
+                      {getClientName(invoice.clientId)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                      #{invoice.id?.slice(0, 8)}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div style={{ maxWidth: '200px' }}>
+                    {invoice.description || 'Sem descrição'}
+                  </div>
+                </td>
+                <td style={{ fontWeight: '600' }}>
+                  {formatCurrency(invoice.amount)}
+                </td>
+                <td>
+                  {formatDate(invoice.dueDate)}
+                </td>
+                <td>
+                  <span className={`badge ${getStatusBadgeClass(invoice.status)}`}>
+                    {getStatusText(invoice.status)}
+                  </span>
+                </td>
+                <td>
+                  {invoice.paidDate ? formatDate(invoice.paidDate) : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

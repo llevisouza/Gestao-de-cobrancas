@@ -1,35 +1,55 @@
-// src/components/dashboard/KPICards.js
-import React, { useMemo } from 'react';
+import React from 'react';
 import { formatCurrency } from '../../utils/formatters';
-import { INVOICE_STATUS } from '../../utils/constants';
 
-const KPICards = ({ invoices, clients }) => {
-  const stats = useMemo(() => {
-    const totalBilled = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const pending = invoices
-      .filter(inv => inv.status === INVOICE_STATUS.PENDING)
-      .reduce((sum, inv) => sum + inv.amount, 0);
-    const overdue = invoices
-      .filter(inv => inv.status === INVOICE_STATUS.OVERDUE)
-      .reduce((sum, inv) => sum + inv.amount, 0);
-    const clientCount = clients.length;
-
-    return { totalBilled, pending, overdue, clientCount };
-  }, [invoices, clients]);
-
+const KPICards = ({ kpis }) => {
   const kpiData = [
-    { title: 'Total Faturado', value: formatCurrency(stats.totalBilled), color: 'blue' },
-    { title: 'Pendente', value: formatCurrency(stats.pending), color: 'yellow' },
-    { title: 'Vencido', value: formatCurrency(stats.overdue), color: 'red' },
-    { title: 'Clientes Ativos', value: stats.clientCount, color: 'green' }
+    {
+      title: 'Total de Clientes',
+      value: kpis.totalClients,
+      icon: '👥',
+      iconClass: 'info',
+      change: null
+    },
+    {
+      title: 'Assinaturas Ativas',
+      value: kpis.activeSubscriptions,
+      icon: '✅',
+      iconClass: 'success',
+      change: null
+    },
+    {
+      title: 'Receita Mensal',
+      value: formatCurrency(kpis.monthlyRevenue),
+      icon: '💰',
+      iconClass: 'success',
+      change: null
+    },
+    {
+      title: 'Faturas Pendentes',
+      value: kpis.pendingInvoices,
+      icon: '⏰',
+      iconClass: kpis.pendingInvoices > 0 ? 'warning' : 'success',
+      change: null
+    }
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {kpiData.map(kpi => (
-        <div key={kpi.title} className={`bg-white rounded-lg shadow p-6 border-l-4 border-${kpi.color}-500`}>
-          <p className="text-sm font-medium text-gray-500">{kpi.title}</p>
-          <p className="text-3xl font-bold text-gray-800 mt-1">{kpi.value}</p>
+    <div className="kpi-grid">
+      {kpiData.map((kpi, index) => (
+        <div key={index} className="kpi-card fade-in">
+          <div className="kpi-card-header">
+            <div className="kpi-card-title">{kpi.title}</div>
+            <div className={`kpi-card-icon ${kpi.iconClass}`}>
+              <span>{kpi.icon}</span>
+            </div>
+          </div>
+          <div className="kpi-card-value">{kpi.value}</div>
+          {kpi.change && (
+            <div className={`kpi-card-change ${kpi.change.type}`}>
+              <span>{kpi.change.type === 'positive' ? '↗️' : '↘️'}</span>
+              {kpi.change.value}
+            </div>
+          )}
         </div>
       ))}
     </div>

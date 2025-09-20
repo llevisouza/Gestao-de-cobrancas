@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permite leitura e escrita por qualquer pessoa até 20 de Outubro de 2025.
+    // ATENÇÃO: Esta regra é apenas para desenvolvimento.
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 10, 20);
+    }
+  }
+}

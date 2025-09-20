@@ -93,10 +93,9 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
-
-        <KPICards kpis={kpis} />
+        <KPICards invoices={invoices} clients={clients} />
         
-        <InvoiceTable invoices={invoices} clients={clients} />
+         <InvoiceTable invoices={invoices} clients={clients} />
       </div>
     </div>
   );

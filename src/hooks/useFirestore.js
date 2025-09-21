@@ -1,4 +1,4 @@
-// src/hooks/useFirestore.js - COM LIMPEZA DE DADOS ÓRFÃOS
+// src/hooks/useFirestore.js - COM SISTEMA DE RECORRÊNCIA COMPLETO
 import { useState, useEffect, useCallback } from 'react';
 import { 
   collection, 
@@ -14,7 +14,130 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { getCurrentDate, getCurrentDateTime, getNextWeekdayDate, debugDate } from '../utils/dateUtils';
+
+// Funções de data
+const getCurrentDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentDateTime = () => {
+  return new Date().toISOString();
+};
+
+// Função para calcular próxima data de vencimento baseada na recorrência
+const calculateNextDueDate = (subscription, baseDate = null) => {
+  const startDate = baseDate ? new Date(baseDate + 'T12:00:00') : new Date(subscription.startDate + 'T12:00:00');
+  let nextDueDate;
+
+  switch (subscription.recurrenceType) {
+    case 'daily':
+      // Para diário, próxima cobrança é sempre no próximo dia
+      nextDueDate = new Date(startDate);
+      nextDueDate.setDate(nextDueDate.getDate() + 1);
+      break;
+
+    case 'weekly':
+      // Para semanal, calcular próximo dia da semana
+      const daysOfWeek = {
+        'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+        'thursday': 4, 'friday': 5, 'saturday': 6
+      };
+      const targetDay = daysOfWeek[subscription.dayOfWeek];
+      const currentDay = startDate.getDay();
+      let daysToAdd = (targetDay - currentDay + 7) % 7;
+      if (daysToAdd === 0) daysToAdd = 7; // Se é hoje, próxima semana
+      
+      nextDueDate = new Date(startDate);
+      nextDueDate.setDate(nextDueDate.getDate() + daysToAdd);
+      break;
+
+    case 'monthly':
+      // Para mensal, próximo mês no dia especificado
+      const nextMonth = new Date(startDate);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      nextMonth.setDate(subscription.dayOfMonth);
+      nextDueDate = nextMonth;
+      break;
+
+    case 'custom':
+      // Para personalizado, adicionar o número de dias especificado
+      nextDueDate = new Date(startDate);
+      nextDueDate.setDate(nextDueDate.getDate() + subscription.recurrenceDays);
+      break;
+
+    default:
+      // Fallback para mensal
+      nextDueDate = new Date(startDate);
+      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+      if (subscription.dayOfMonth) {
+        nextDueDate.setDate(subscription.dayOfMonth);
+      }
+  }
+
+  // Formatar como YYYY-MM-DD
+  const year = nextDueDate.getFullYear();
+  const month = String(nextDueDate.getMonth() + 1).padStart(2, '0');
+  const day = String(nextDueDate.getDate()).padStart(2, '0');
+  
+  const result = `${year}-${month}-${day}`;
+  console.log('[DEBUG] Próxima data de vencimento:', {
+    subscriptionType: subscription.recurrenceType,
+    startDate: startDate.toDateString(),
+    nextDueDate: nextDueDate.toDateString(),
+    result
+  });
+  
+  return result;
+};
+
+// Função para verificar se deve gerar fatura baseada na recorrência
+const shouldGenerateInvoice = (subscription, existingInvoices) => {
+  const today = getCurrentDate();
+  const subscriptionStart = new Date(subscription.startDate + 'T12:00:00');
+  const todayDate = new Date(today + 'T12:00:00');
+
+  // Verificar se a assinatura já começou
+  if (subscriptionStart > todayDate) {
+    return { should: false, reason: 'Assinatura ainda não iniciou' };
+  }
+
+  // Encontrar a última fatura gerada para esta assinatura
+  const subscriptionInvoices = existingInvoices
+    .filter(inv => inv.subscriptionId === subscription.id)
+    .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+
+  const lastInvoice = subscriptionInvoices[0];
+
+  if (!lastInvoice) {
+    // Primeira fatura - sempre gerar
+    return { should: true, reason: 'Primeira fatura', nextDueDate: calculateNextDueDate(subscription) };
+  }
+
+  // Calcular quando deveria ser a próxima fatura baseada na última
+  const lastDueDate = lastInvoice.dueDate;
+  const nextDueDate = calculateNextDueDate(subscription, lastDueDate);
+  const nextDueDateObj = new Date(nextDueDate + 'T12:00:00');
+
+  // Verificar se já passou da data da próxima fatura
+  if (todayDate >= nextDueDateObj) {
+    // Verificar se já existe fatura para esta data
+    const existsForDate = existingInvoices.some(inv => 
+      inv.subscriptionId === subscription.id && inv.dueDate === nextDueDate
+    );
+
+    if (!existsForDate) {
+      return { should: true, reason: 'Nova fatura deve ser gerada', nextDueDate };
+    } else {
+      return { should: false, reason: 'Fatura já existe para esta data' };
+    }
+  }
+
+  return { should: false, reason: 'Ainda não é hora da próxima fatura' };
+};
 
 export const useFirestore = () => {
   const [clients, setClients] = useState([]);
@@ -289,10 +412,10 @@ export const useFirestore = () => {
     }
   }, []);
 
-  // Gerar faturas mensais COM DATAS CORRIGIDAS
-  const generateMonthlyInvoices = useCallback(async (month, year) => {
+  // Gerar faturas automáticas COM NOVO SISTEMA DE RECORRÊNCIA
+  const generateInvoices = useCallback(async () => {
     try {
-      console.log(`Gerando faturas para ${month + 1}/${year}`);
+      console.log('Iniciando geração automática de faturas...');
       
       const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
       if (activeSubscriptions.length === 0) {
@@ -303,52 +426,37 @@ export const useFirestore = () => {
       const currentDate = getCurrentDate();
       
       console.log('[DEBUG] Data atual:', currentDate);
+      console.log('[DEBUG] Assinaturas ativas:', activeSubscriptions.length);
       
       for (const subscription of activeSubscriptions) {
-        // Verificar se já existe fatura para este mês/ano
-        const existingInvoice = invoices.find(invoice => {
-          if (invoice.subscriptionId !== subscription.id) return false;
-          
-          const invoiceDate = new Date(invoice.dueDate + 'T12:00:00');
-          return invoiceDate.getMonth() === month && invoiceDate.getFullYear() === year;
+        console.log('[DEBUG] Verificando assinatura:', {
+          id: subscription.id,
+          name: subscription.name,
+          type: subscription.recurrenceType,
+          client: subscription.clientName
         });
 
-        if (existingInvoice) {
-          console.log(`Fatura já existe para assinatura ${subscription.id}`);
+        // Verificar se deve gerar fatura para esta assinatura
+        const shouldGenerate = shouldGenerateInvoice(subscription, invoices);
+        console.log('[DEBUG] Resultado da verificação:', shouldGenerate);
+
+        if (!shouldGenerate.should) {
+          console.log(`Pulando assinatura ${subscription.id}: ${shouldGenerate.reason}`);
           continue;
         }
 
-        // CORREÇÃO: Calcular data de vencimento para o mês específico
-        const firstDayOfMonth = new Date(year, month, 1);
-        const firstDayString = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        
-        console.log('[DEBUG] Calculando vencimento para:', {
-          subscription: subscription.id,
-          dayOfWeek: subscription.dayOfWeek,
-          month,
-          year,
-          firstDay: firstDayString
-        });
-        
-        // Calcular próximo dia da semana no mês
-        const dueDate = getNextWeekdayDate(subscription.dayOfWeek, firstDayString);
-        
-        console.log('[DEBUG] Data de vencimento calculada:', dueDate);
-        debugDate('Vencimento da fatura', dueDate);
-        
+        // Gerar nova fatura
         const invoiceData = {
           subscriptionId: subscription.id,
           clientId: subscription.clientId,
           clientName: subscription.clientName,
+          subscriptionName: subscription.name,
           amount: parseFloat(subscription.amount),
-          dueDate: dueDate, // Formato YYYY-MM-DD
+          dueDate: shouldGenerate.nextDueDate,
           generationDate: currentDate,
           createdAt: getCurrentDateTime(),
           status: 'pending',
-          description: `Assinatura - ${new Date(year, month).toLocaleDateString('pt-BR', { 
-            month: 'long', 
-            year: 'numeric' 
-          })}`
+          description: `${subscription.name} - ${getRecurrenceDescription(subscription)}`
         };
 
         console.log('[DEBUG] Criando fatura:', invoiceData);
@@ -365,13 +473,36 @@ export const useFirestore = () => {
     }
   }, [subscriptions, invoices]);
 
-  // Criar dados de exemplo
+  // Função auxiliar para descrição da recorrência
+  const getRecurrenceDescription = (subscription) => {
+    const today = new Date();
+    const monthName = today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    
+    switch (subscription.recurrenceType) {
+      case 'daily':
+        return `Cobrança diária - ${today.toLocaleDateString('pt-BR')}`;
+      case 'weekly':
+        return `Cobrança semanal - ${monthName}`;
+      case 'monthly':
+        return `Cobrança mensal - ${monthName}`;
+      case 'custom':
+        return `Cobrança a cada ${subscription.recurrenceDays} dias - ${monthName}`;
+      default:
+        return `Cobrança - ${monthName}`;
+    }
+  };
+
+  // Manter compatibilidade com o método antigo
+  const generateMonthlyInvoices = useCallback(async (month, year) => {
+    // Para manter compatibilidade, vamos usar o novo sistema
+    return await generateInvoices();
+  }, [generateInvoices]);
+
+  // Criar dados de exemplo ATUALIZADO com diferentes tipos de recorrência
   const createExampleData = useCallback(async () => {
     try {
-      console.log('Criando dados de exemplo...');
+      console.log('Criando dados de exemplo com diferentes recorrências...');
       const currentDate = getCurrentDate();
-      
-      console.log('[DEBUG] Data atual para exemplo:', currentDate);
       
       const exampleClients = [
         {
@@ -394,6 +525,13 @@ export const useFirestore = () => {
           phone: '11777777777',
           cpf: '45678912345',
           pix: 'pedro@email.com'
+        },
+        {
+          name: 'Ana Oliveira',
+          email: 'ana@email.com',
+          phone: '11666666666',
+          cpf: '78912345678',
+          pix: 'ana@email.com'
         }
       ];
 
@@ -405,22 +543,54 @@ export const useFirestore = () => {
 
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const subscriptionPromises = createdClients.map((client, index) => {
-        const amount = [50, 75, 100][index];
-        const dayOfWeek = ['monday', 'wednesday', 'friday'][index];
-        
+      // Criar assinaturas com diferentes tipos de recorrência
+      const subscriptionData = [
+        {
+          client: createdClients[0],
+          name: 'Plano Premium Mensal',
+          amount: 150,
+          recurrenceType: 'monthly',
+          dayOfMonth: 20
+        },
+        {
+          client: createdClients[1],
+          name: 'Delivery Semanal',
+          amount: 75,
+          recurrenceType: 'weekly',
+          dayOfWeek: 'friday'
+        },
+        {
+          client: createdClients[2],
+          name: 'Serviço Personalizado',
+          amount: 200,
+          recurrenceType: 'custom',
+          recurrenceDays: 15
+        },
+        {
+          client: createdClients[3],
+          name: 'Plano Diário',
+          amount: 25,
+          recurrenceType: 'daily'
+        }
+      ];
+
+      const subscriptionPromises = subscriptionData.map(data => {
         return createSubscription({
-          clientId: client.id,
-          clientName: client.name,
-          amount: amount,
-          dayOfWeek: dayOfWeek,
+          clientId: data.client.id,
+          clientName: data.client.name,
+          name: data.name,
+          amount: data.amount,
+          recurrenceType: data.recurrenceType,
+          recurrenceDays: data.recurrenceDays || 30,
+          dayOfMonth: data.dayOfMonth || null,
+          dayOfWeek: data.dayOfWeek || 'monday',
           startDate: currentDate,
           status: 'active'
         });
       });
 
       await Promise.all(subscriptionPromises);
-      console.log('Dados de exemplo criados com sucesso!');
+      console.log('Dados de exemplo com diferentes recorrências criados com sucesso!');
     } catch (error) {
       console.error('Erro ao criar dados de exemplo:', error);
       throw error;
@@ -444,7 +614,8 @@ export const useFirestore = () => {
     
     updateInvoice,
     
-    generateMonthlyInvoices,
+    generateInvoices, // Nova função principal
+    generateMonthlyInvoices, // Manter compatibilidade
     createExampleData
   };
 };

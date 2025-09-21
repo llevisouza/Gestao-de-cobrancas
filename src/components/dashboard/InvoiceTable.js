@@ -1,8 +1,35 @@
+
 // src/components/dashboard/InvoiceTable.js - VERSÃO CORRIGIDA
 import React, { useMemo } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { INVOICE_STATUS, INVOICE_STATUS_LABELS } from '../../utils/constants';
+
+// Função corrigida para calcular diferença de dias
+const getDaysDifference = (dateString) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Zerar horas para comparação exata
+    
+    const targetDate = new Date(dateString + 'T12:00:00'); // Meio-dia para evitar problemas de timezone
+    targetDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    console.log('[DEBUG] Diferença de dias:', {
+      dateString,
+      today: today.toDateString(),
+      targetDate: targetDate.toDateString(),
+      diffDays
+    });
+    
+    return diffDays;
+  } catch (error) {
+    console.error('Erro ao calcular diferença de dias:', error);
+    return 0;
+  }
+};
 
 const InvoiceTable = ({ invoices, clients }) => {
   const { updateInvoice } = useFirestore();
@@ -16,9 +43,29 @@ const InvoiceTable = ({ invoices, clients }) => {
     return map;
   }, [clients]);
 
-  // Memoizar as faturas ordenadas
+  // Memoizar as faturas ordenadas com status automático corrigido
   const sortedInvoices = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     return [...invoices]
+      .map(invoice => {
+        // Atualizar status automaticamente baseado na data
+        const dueDate = new Date(invoice.dueDate + 'T12:00:00');
+        dueDate.setHours(0, 0, 0, 0);
+        
+        let correctedStatus = invoice.status;
+        
+        // Se está pendente e já venceu, marcar como vencida
+        if (invoice.status === 'pending' && dueDate < today) {
+          correctedStatus = 'overdue';
+        }
+        
+        return {
+          ...invoice,
+          status: correctedStatus
+        };
+      })
       .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
       .slice(0, 10); // Mostrar apenas as 10 mais recentes
   }, [invoices]);
@@ -56,45 +103,32 @@ const InvoiceTable = ({ invoices, clients }) => {
     };
   };
 
+  // Função CORRIGIDA para informações de dias
   const getDaysInfo = (invoice) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueDate = new Date(invoice.dueDate);
-    dueDate.setHours(0, 0, 0, 0);
-    
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = getDaysDifference(invoice.dueDate);
 
-    if (invoice.status === 'paid') return { text: 'Pago', class: 'text-success-600' };
-    if (diffDays < 0) return { text: `${Math.abs(diffDays)} dias em atraso`, class: 'text-error-600' };
-    if (diffDays === 0) return { text: 'Vence hoje', class: 'text-warning-600' };
-    if (diffDays === 1) return { text: 'Vence amanhã', class: 'text-warning-600' };
+    if (invoice.status === 'paid') {
+      return { text: 'Pago', class: 'text-success-600' };
+    }
+    
+    if (diffDays < 0) {
+      const daysOverdue = Math.abs(diffDays);
+      return { 
+        text: `${daysOverdue} dias em atraso`, 
+        class: 'text-error-600 font-medium' 
+      };
+    }
+    
+    if (diffDays === 0) {
+      return { text: 'Vence hoje', class: 'text-warning-600 font-medium' };
+    }
+    
+    if (diffDays === 1) {
+      return { text: 'Vence amanhã', class: 'text-warning-600' };
+    }
+    
     return { text: `${diffDays} dias restantes`, class: 'text-gray-500' };
   };
-
-  // Função para atualizar status automaticamente para vencidas
-  const updateOverdueInvoices = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    invoices.forEach(invoice => {
-      if (invoice.status === 'pending') {
-        const dueDate = new Date(invoice.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
-        
-        if (dueDate < today) {
-          updateInvoice(invoice.id, { status: 'overdue' }).catch(console.error);
-        }
-      }
-    });
-  };
-
-  // Executar verificação de vencidas ao montar o componente
-  React.useEffect(() => {
-    if (invoices.length > 0) {
-      updateOverdueInvoices();
-    }
-  }, [invoices.length]);
   
   if (!invoices || invoices.length === 0) {
     return (
@@ -111,19 +145,19 @@ const InvoiceTable = ({ invoices, clients }) => {
     );
   }
 
-  return (
-    <div className="card">
-      {/* Header da tabela */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Faturas Recentes
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Mostrando {Math.min(sortedInvoices.length, 10)} de {invoices.length} faturas
-            </p>
-          </div>
+    return (
+      <div className="card">
+        {/* Header da tabela */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Faturas Recentes
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Mostrando {Math.min(sortedInvoices.length, 10)} de {invoices.length} faturas
+              </p>
+            </div>
           
           {/* Estatísticas rápidas */}
           <div className="flex space-x-6 text-sm">

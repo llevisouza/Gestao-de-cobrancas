@@ -1,4 +1,4 @@
-// src/components/clients/ClientTable.js - VERSÃO CORRIGIDA
+// src/components/clients/ClientTable.js - VERSÃO ATUALIZADA
 import React from 'react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -9,7 +9,7 @@ const ClientTable = ({
   onDeleteClient,
   onNewSubscription, 
   onEditSubscription,
-  onDeleteSubscription // NOVA PROP
+  onDeleteSubscription
 }) => {
   
   const getClientSubscriptions = (clientId) => {
@@ -37,9 +37,10 @@ const ClientTable = ({
     }
   };
 
-  // NOVA FUNÇÃO: Confirmar exclusão de assinatura
+  // Função para confirmar exclusão de assinatura
   const handleDeleteSubscription = async (subscription, clientName) => {
-    const confirmMessage = `Tem certeza que deseja excluir a assinatura de ${formatCurrency(subscription.amount)} do cliente ${clientName}?`;
+    const subscriptionName = subscription.name || `Assinatura de ${formatCurrency(subscription.amount)}`;
+    const confirmMessage = `Tem certeza que deseja excluir a assinatura "${subscriptionName}" do cliente ${clientName}?`;
     
     if (window.confirm(confirmMessage)) {
       try {
@@ -113,8 +114,8 @@ const ClientTable = ({
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <span className="text-sm font-medium text-blue-600">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <span className="text-sm font-medium text-orange-600">
                             {client.name?.charAt(0)?.toUpperCase() || 'C'}
                           </span>
                         </div>
@@ -128,7 +129,7 @@ const ClientTable = ({
                         </div>
                         {client.phone && (
                           <div className="text-xs text-gray-400">
-                            {client.phone}
+                            📞 {client.phone}
                           </div>
                         )}
                       </div>
@@ -136,35 +137,61 @@ const ClientTable = ({
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 mb-2">
-                      {activeSubs} ativas / {clientSubs.length} total
+                      <span className="font-medium">{activeSubs}</span> ativas / <span className="text-gray-500">{clientSubs.length}</span> total
                     </div>
                     {clientSubs.length > 0 && (
-                      <div className="text-xs text-gray-500 space-y-2">
+                      <div className="space-y-2">
                         {clientSubs.map((sub, index) => (
-                          <div key={sub.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <div key={sub.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border">
                             <div className="flex-1">
-                              <button
-                                onClick={() => onEditSubscription(sub, client)}
-                                className="text-blue-600 hover:text-blue-800 underline text-left"
-                              >
-                                Assinatura #{index + 1} - {formatCurrency(sub.amount)}
-                              </button>
-                              <div className="flex items-center mt-1">
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => onEditSubscription(sub, client)}
+                                  className="text-blue-600 hover:text-blue-800 underline text-left font-medium text-sm"
+                                >
+                                  {sub.name || `Assinatura #${index + 1}`}
+                                </button>
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                   sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                                 }`}>
                                   {sub.status === 'active' ? 'Ativa' : 'Inativa'}
                                 </span>
-                                {sub.startDate && (
-                                  <span className="ml-2 text-xs text-gray-400">
-                                    Desde {formatDate(sub.startDate)}
+                              </div>
+                              <div className="mt-1 text-sm text-gray-600">
+                                💰 {formatCurrency(sub.amount)} 
+                                {sub.recurrenceType === 'daily' && (
+                                  <span className="ml-2 text-blue-600">
+                                    🔄 Diário
+                                  </span>
+                                )}
+                                {sub.recurrenceType === 'weekly' && (
+                                  <span className="ml-2 text-green-600">
+                                    📅 Semanal ({sub.dayOfWeek ? 
+                                      ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][
+                                        ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(sub.dayOfWeek)
+                                      ] : 'Segunda'})
+                                  </span>
+                                )}
+                                {sub.recurrenceType === 'monthly' && sub.dayOfMonth && (
+                                  <span className="ml-2 text-orange-600">
+                                    📅 Mensal (dia {sub.dayOfMonth})
+                                  </span>
+                                )}
+                                {sub.recurrenceType === 'custom' && sub.recurrenceDays && (
+                                  <span className="ml-2 text-purple-600">
+                                    ⏱️ A cada {sub.recurrenceDays} dias
                                   </span>
                                 )}
                               </div>
+                              {sub.startDate && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Desde {formatDate(sub.startDate)}
+                                </div>
+                              )}
                             </div>
                             
-                            {/* NOVOS BOTÕES DE AÇÃO PARA ASSINATURA */}
-                            <div className="flex space-x-1 ml-2">
+                            {/* Botões de ação para assinatura */}
+                            <div className="flex space-x-1 ml-3">
                               <button
                                 onClick={() => onEditSubscription(sub, client)}
                                 className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs hover:bg-blue-200 transition-colors"
@@ -185,8 +212,15 @@ const ClientTable = ({
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {formatCurrency(monthlyRev)}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(monthlyRev)}
+                    </div>
+                    {monthlyRev > 0 && (
+                      <div className="text-xs text-gray-500">
+                        por mês
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${status.class}`}>

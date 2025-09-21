@@ -1,4 +1,4 @@
-// src/utils/dateUtils.js - CORREÇÃO DEFINITIVA
+// src/utils/dateUtils.js - VERSÃO FINAL CORRIGIDA
 export const formatDate = (dateInput) => {
   if (!dateInput) return '';
   
@@ -58,7 +58,14 @@ export const getDaysDifference = (dateString1, dateString2 = null) => {
     const date1 = new Date(dateString1 + 'T12:00:00');
     const date2 = new Date(today + 'T12:00:00');
     
-    console.log('[DEBUG] Datas criadas:', { date1: date1.toString(), date2: date2.toString() });
+    // Zerar horas para comparação exata
+    date1.setHours(0, 0, 0, 0);
+    date2.setHours(0, 0, 0, 0);
+    
+    console.log('[DEBUG] Datas criadas:', { 
+      date1: date1.toDateString(), 
+      date2: date2.toDateString() 
+    });
     
     // Calcular diferença em milissegundos
     const diffTime = date1.getTime() - date2.getTime();
@@ -152,41 +159,41 @@ export const endOfYear = (date = new Date()) => {
   return new Date(date.getFullYear(), 11, 31);
 };
 
-// Função CORRIGIDA para calcular próxima data baseada no dia da semana
-export const getNextWeekdayDate = (dayOfWeek, fromDate = null) => {
-  const daysMap = {
-    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-    'thursday': 4, 'friday': 5, 'saturday': 6
-  };
-  
-  const targetDay = daysMap[dayOfWeek.toLowerCase()];
-  if (targetDay === undefined) {
-    throw new Error('Dia da semana inválido: ' + dayOfWeek);
+// Função NOVA: Calcular data de vencimento baseada no dia do mês
+export const calculateDueDateByDayOfMonth = (dayOfMonth, referenceMonth = null, referenceYear = null) => {
+  try {
+    const today = new Date();
+    const year = referenceYear || today.getFullYear();
+    const month = referenceMonth !== null ? referenceMonth : today.getMonth(); // 0-11
+    
+    // Criar data para o dia especificado do mês
+    let dueDate = new Date(year, month, dayOfMonth, 12, 0, 0);
+    
+    // Se a data já passou neste mês (só para mês atual), usar próximo mês
+    if (referenceMonth === null && dueDate <= today) {
+      dueDate = new Date(year, month + 1, dayOfMonth, 12, 0, 0);
+    }
+    
+    // Formatar como YYYY-MM-DD
+    const dueDateYear = dueDate.getFullYear();
+    const dueDateMonth = String(dueDate.getMonth() + 1).padStart(2, '0');
+    const dueDateDay = String(dueDate.getDate()).padStart(2, '0');
+    
+    const result = `${dueDateYear}-${dueDateMonth}-${dueDateDay}`;
+    
+    console.log('[DEBUG] Data de vencimento por dia do mês:', {
+      dayOfMonth,
+      referenceMonth,
+      referenceYear,
+      calculatedDate: dueDate.toDateString(),
+      result
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('Erro ao calcular data de vencimento:', error);
+    return getCurrentDate();
   }
-  
-  // Data base
-  const baseDate = fromDate ? new Date(fromDate + 'T12:00:00') : new Date();
-  const currentDay = baseDate.getDay();
-  
-  // Calcular dias para adicionar
-  let daysToAdd = (targetDay - currentDay + 7) % 7;
-  
-  // Se é hoje, pegar da próxima semana
-  if (daysToAdd === 0) {
-    daysToAdd = 7;
-  }
-  
-  const nextDate = new Date(baseDate);
-  nextDate.setDate(baseDate.getDate() + daysToAdd);
-  
-  const year = nextDate.getFullYear();
-  const month = String(nextDate.getMonth() + 1).padStart(2, '0');
-  const day = String(nextDate.getDate()).padStart(2, '0');
-  
-  const result = `${year}-${month}-${day}`;
-  console.log('[DEBUG] Next weekday:', { dayOfWeek, fromDate, targetDay, daysToAdd, result });
-  
-  return result;
 };
 
 // Função para validar formato de data
@@ -218,6 +225,21 @@ export const debugDate = (label, dateString) => {
   });
 };
 
+// Função para obter informações detalhadas de uma data
+export const getDateInfo = (dateString) => {
+  const diffDays = getDaysDifference(dateString);
+  
+  return {
+    original: dateString,
+    formatted: formatDate(dateString),
+    diffDays,
+    isPast: diffDays < 0,
+    isToday: diffDays === 0,
+    isFuture: diffDays > 0,
+    status: diffDays < 0 ? 'overdue' : diffDays === 0 ? 'today' : 'future'
+  };
+};
+
 export default {
   formatDate,
   getCurrentDate,
@@ -231,7 +253,8 @@ export default {
   endOfMonth,
   startOfYear,
   endOfYear,
-  getNextWeekdayDate,
+  calculateDueDateByDayOfMonth,
   isValidDate,
-  debugDate
+  debugDate,
+  getDateInfo
 };

@@ -1,281 +1,199 @@
-// src/utils/constants.js
-
-// Configurações da aplicação
-export const APP_CONFIG = {
-  name: 'Sistema de Gestão de Cobranças',
-  version: '1.0.0',
-  author: 'Sua Empresa'
-};
-
-// Rotas da aplicação
+// src/utils/constants.js - ARQUIVO ATUALIZADO
 export const ROUTES = {
-  DASHBOARD: '/dashboard',
-  CLIENTS: '/clients',
-  REPORTS: '/reports',
-  SUBSCRIPTIONS: '/subscriptions',
-  INVOICES: '/invoices'
+  LOGIN: 'login',
+  DASHBOARD: 'dashboard',
+  CLIENTS: 'clients',
+  REPORTS: 'reports',
+  SETTINGS: 'settings'
 };
 
-// Status das faturas
 export const INVOICE_STATUS = {
   PENDING: 'pending',
   PAID: 'paid',
-  OVERDUE: 'overdue'
-};
-
-// Cores dos status das faturas
-export const INVOICE_STATUS_COLORS = {
-  pending: 'warning',
-  paid: 'success',
-  overdue: 'danger'
-};
-
-// Labels dos status das faturas
-export const INVOICE_STATUS_LABELS = {
-  pending: 'Pendente',
-  paid: 'Pago',
-  overdue: 'Vencido'
-};
-
-// Status das assinaturas - OBJETO
-export const SUBSCRIPTION_STATUS_OBJ = {
-  ACTIVE: 'active',
-  PAUSED: 'paused',
+  OVERDUE: 'overdue',
   CANCELLED: 'cancelled'
 };
 
-// Status das assinaturas - ARRAY para select
-export const SUBSCRIPTION_STATUS = [
-  { value: 'active', label: 'Ativa', color: 'success' },
-  { value: 'paused', label: 'Pausada', color: 'warning' },
-  { value: 'cancelled', label: 'Cancelada', color: 'danger' }
-];
+export const INVOICE_STATUS_LABELS = {
+  [INVOICE_STATUS.PENDING]: 'Pendente',
+  [INVOICE_STATUS.PAID]: 'Pago',
+  [INVOICE_STATUS.OVERDUE]: 'Vencido',
+  [INVOICE_STATUS.CANCELLED]: 'Cancelado'
+};
 
-// Ciclos de cobrança
-export const BILLING_CYCLES = [
-  { value: 'monthly', label: 'Mensal' },
-  { value: 'quarterly', label: 'Trimestral' },
-  { value: 'semiannual', label: 'Semestral' },
-  { value: 'annual', label: 'Anual' }
-];
+export const SUBSCRIPTION_STATUS = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+  CANCELLED: 'cancelled'
+};
 
-// Tipos de serviços pré-definidos
-export const SERVICE_TYPES = [
-  {
-    name: 'Website Básico',
-    description: 'Manutenção de website básico',
-    defaultValue: '300.00'
-  },
-  {
-    name: 'Website Avançado',
-    description: 'Manutenção completa com atualizações',
-    defaultValue: '500.00'
-  },
-  {
-    name: 'E-commerce',
-    description: 'Gestão completa de loja virtual',
-    defaultValue: '800.00'
-  },
-  {
-    name: 'SEO Básico',
-    description: 'Otimização SEO básica',
-    defaultValue: '400.00'
-  },
-  {
-    name: 'SEO Premium',
-    description: 'Otimização SEO completa com relatórios',
-    defaultValue: '800.00'
-  },
-  {
-    name: 'Marketing Digital',
-    description: 'Gestão de redes sociais e campanhas',
-    defaultValue: '600.00'
-  },
-  {
-    name: 'Consultoria',
-    description: 'Consultoria estratégica personalizada',
-    defaultValue: '1200.00'
-  },
-  {
-    name: 'Hospedagem',
-    description: 'Hospedagem com suporte técnico',
-    defaultValue: '100.00'
-  },
-  {
-    name: 'Backup e Segurança',
-    description: 'Backup automático e monitoramento',
-    defaultValue: '150.00'
-  }
-];
+export const SUBSCRIPTION_STATUS_LABELS = {
+  [SUBSCRIPTION_STATUS.ACTIVE]: 'Ativa',
+  [SUBSCRIPTION_STATUS.INACTIVE]: 'Inativa',
+  [SUBSCRIPTION_STATUS.CANCELLED]: 'Cancelada'
+};
 
-// Dias da semana
-export const DAYS_OF_WEEK = [
-  'domingo', 'segunda', 'terça', 'quarta', 
-  'quinta', 'sexta', 'sábado'
-];
+export const DAYS_OF_WEEK = {
+  MONDAY: 'monday',
+  TUESDAY: 'tuesday',
+  WEDNESDAY: 'wednesday',
+  THURSDAY: 'thursday',
+  FRIDAY: 'friday',
+  SATURDAY: 'saturday',
+  SUNDAY: 'sunday'
+};
 
-// Labels dos dias da semana
 export const DAYS_OF_WEEK_LABELS = {
-  domingo: 'Domingo',
-  segunda: 'Segunda-feira',
-  terça: 'Terça-feira',
-  quarta: 'Quarta-feira',
-  quinta: 'Quinta-feira',
-  sexta: 'Sexta-feira',
-  sábado: 'Sábado'
+  [DAYS_OF_WEEK.MONDAY]: 'Segunda-feira',
+  [DAYS_OF_WEEK.TUESDAY]: 'Terça-feira',
+  [DAYS_OF_WEEK.WEDNESDAY]: 'Quarta-feira',
+  [DAYS_OF_WEEK.THURSDAY]: 'Quinta-feira',
+  [DAYS_OF_WEEK.FRIDAY]: 'Sexta-feira',
+  [DAYS_OF_WEEK.SATURDAY]: 'Sábado',
+  [DAYS_OF_WEEK.SUNDAY]: 'Domingo'
 };
 
-// Períodos para relatórios
-export const REPORT_PERIODS = {
-  TODAY: 'today',
-  WEEK: 'week',
-  MONTH: 'month',
-  QUARTER: 'quarter',
-  YEAR: 'year',
-  CUSTOM: 'custom'
+export const PAYMENT_METHODS = {
+  PIX: 'pix',
+  BANK_TRANSFER: 'bank_transfer',
+  CREDIT_CARD: 'credit_card',
+  BOLETO: 'boleto',
+  CASH: 'cash'
 };
 
-// Labels dos períodos
-export const REPORT_PERIOD_LABELS = {
-  today: 'Hoje',
-  week: 'Esta Semana',
-  month: 'Este Mês',
-  quarter: 'Este Trimestre',
-  year: 'Este Ano',
-  custom: 'Período Personalizado'
+export const PAYMENT_METHODS_LABELS = {
+  [PAYMENT_METHODS.PIX]: 'PIX',
+  [PAYMENT_METHODS.BANK_TRANSFER]: 'Transferência Bancária',
+  [PAYMENT_METHODS.CREDIT_CARD]: 'Cartão de Crédito',
+  [PAYMENT_METHODS.BOLETO]: 'Boleto',
+  [PAYMENT_METHODS.CASH]: 'Dinheiro'
 };
 
-// Cores do sistema
-export const COLORS = {
-  primary: '#2563eb',
-  success: '#16a34a',
-  warning: '#d97706',
-  danger: '#dc2626',
-  info: '#0891b2',
-  gray: '#6b7280'
+export const CLIENT_STATUS = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+  BLOCKED: 'blocked'
 };
 
-// Configurações de paginação
-export const PAGINATION = {
-  DEFAULT_PAGE_SIZE: 10,
-  PAGE_SIZE_OPTIONS: [5, 10, 20, 50, 100]
-};
-
-// Formatos de data
-export const DATE_FORMATS = {
-  SHORT: 'DD/MM/YYYY',
-  LONG: 'DD/MM/YYYY HH:mm',
-  ISO: 'YYYY-MM-DD',
-  DISPLAY: 'dd/MM/yyyy'
+export const CLIENT_STATUS_LABELS = {
+  [CLIENT_STATUS.ACTIVE]: 'Ativo',
+  [CLIENT_STATUS.INACTIVE]: 'Inativo',
+  [CLIENT_STATUS.BLOCKED]: 'Bloqueado'
 };
 
 // Configurações de validação
-export const VALIDATION = {
-  EMAIL_REGEX: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  PHONE_REGEX: /^[\(\)\s\-\+\d]+$/,
-  MIN_PASSWORD_LENGTH: 6,
-  MAX_TEXT_LENGTH: 255,
-  MIN_AMOUNT: 0.01,
-  MAX_AMOUNT: 999999.99
+export const VALIDATION_RULES = {
+  CPF_LENGTH: 11,
+  PHONE_MIN_LENGTH: 10,
+  PHONE_MAX_LENGTH: 11,
+  PASSWORD_MIN_LENGTH: 6,
+  NAME_MIN_LENGTH: 2,
+  NAME_MAX_LENGTH: 100,
+  EMAIL_MAX_LENGTH: 255
 };
 
-export const formatCurrency = (value) => {
-  if (value === null || value === undefined || isNaN(value)) {
-    return 'R$ 0,00';
+// Mensagens de erro padrão
+export const ERROR_MESSAGES = {
+  REQUIRED_FIELD: 'Este campo é obrigatório',
+  INVALID_EMAIL: 'Email inválido',
+  INVALID_CPF: 'CPF inválido',
+  INVALID_PHONE: 'Telefone inválido',
+  PASSWORD_TOO_SHORT: `Senha deve ter pelo menos ${VALIDATION_RULES.PASSWORD_MIN_LENGTH} caracteres`,
+  NAME_TOO_SHORT: `Nome deve ter pelo menos ${VALIDATION_RULES.NAME_MIN_LENGTH} caracteres`,
+  GENERIC_ERROR: 'Ocorreu um erro inesperado'
+};
+
+// Configurações de formatação
+export const FORMAT_CONFIG = {
+  CURRENCY: {
+    locale: 'pt-BR',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  },
+  DATE: {
+    locale: 'pt-BR',
+    timeZone: 'America/Sao_Paulo'
+  },
+  PHONE_MASK: '(XX) XXXXX-XXXX',
+  CPF_MASK: 'XXX.XXX.XXX-XX'
+};
+
+// Configurações da aplicação
+export const APP_CONFIG = {
+  NAME: 'Sistema de Cobranças',
+  VERSION: '1.0.0',
+  COMPANY: 'Conexão Delivery',
+  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+  SUPPORTED_FILE_TYPES: ['image/jpeg', 'image/png', 'application/pdf'],
+  PAGINATION_SIZE: 20,
+  DEBOUNCE_DELAY: 300
+};
+
+// URLs e endpoints
+export const API_CONFIG = {
+  FIREBASE_CONFIG: {
+    // Configurações do Firebase vão aqui quando necessário
   }
-  
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(parseFloat(value));
 };
 
-export const formatDate = (date) => {
-  if (!date) return '-';
-  
-  try {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '-';
-    
-    return d.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  } catch (error) {
-    console.error('Erro ao formatar data:', error);
-    return '-';
+// Cores do tema (para uso em componentes que precisam)
+export const THEME_COLORS = {
+  PRIMARY: {
+    50: '#fff7ed',
+    100: '#ffedd5',
+    200: '#fed7aa',
+    300: '#fdba74',
+    400: '#fb923c',
+    500: '#f97316',
+    600: '#ea580c',
+    700: '#c2410c',
+    800: '#9a3412',
+    900: '#7c2d12'
+  },
+  SUCCESS: {
+    500: '#22c55e',
+    600: '#16a34a'
+  },
+  WARNING: {
+    500: '#f59e0b',
+    600: '#d97706'
+  },
+  ERROR: {
+    500: '#ef4444',
+    600: '#dc2626'
   }
 };
 
-export const formatPhone = (phone) => {
-  if (!phone) return '';
-  
-  // Remove tudo que não é número
-  const numbers = phone.replace(/\D/g, '');
-  
-  // Formata o telefone
-  if (numbers.length <= 10) {
-    // Telefone fixo: (11) 1234-5678
-    return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-  } else {
-    // Celular: (11) 91234-5678
-    return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+// Configurações de notificação
+export const NOTIFICATION_CONFIG = {
+  AUTO_CLOSE_DELAY: 5000,
+  MAX_NOTIFICATIONS: 5,
+  POSITIONS: {
+    TOP_RIGHT: 'top-right',
+    TOP_LEFT: 'top-left',
+    BOTTOM_RIGHT: 'bottom-right',
+    BOTTOM_LEFT: 'bottom-left'
   }
 };
 
-export const formatCPF = (cpf) => {
-  if (!cpf) return '';
-  
-  // Remove tudo que não é número
-  const numbers = cpf.replace(/\D/g, '');
-  
-  // Limita a 11 dígitos
-  const limited = numbers.slice(0, 11);
-  
-  // Aplica a formatação
-  return limited.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-};
-
-export const removeFormatting = (text) => {
-  if (!text) return '';
-  return text.replace(/\D/g, '');
-};
-
-export const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-export const isValidCPF = (cpf) => {
-  if (!cpf) return false;
-  
-  const numbers = removeFormatting(cpf);
-  
-  // CPF deve ter 11 dígitos
-  if (numbers.length !== 11) return false;
-  
-  // Verifica se todos os dígitos são iguais
-  if (/^(\d)\1{10}$/.test(numbers)) return false;
-  
-  // Validação do algoritmo do CPF
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(numbers[i]) * (10 - i);
-  }
-  
-  let remainder = sum % 11;
-  let digit1 = remainder < 2 ? 0 : 11 - remainder;
-  
-  if (parseInt(numbers[9]) !== digit1) return false;
-  
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(numbers[i]) * (11 - i);
-  }
-  
-  remainder = sum % 11;
-  let digit2 = remainder < 2 ? 0 : 11 - remainder;
-  
-  return parseInt(numbers[10]) === digit2;
+export default {
+  ROUTES,
+  INVOICE_STATUS,
+  INVOICE_STATUS_LABELS,
+  SUBSCRIPTION_STATUS,
+  SUBSCRIPTION_STATUS_LABELS,
+  DAYS_OF_WEEK,
+  DAYS_OF_WEEK_LABELS,
+  PAYMENT_METHODS,
+  PAYMENT_METHODS_LABELS,
+  CLIENT_STATUS,
+  CLIENT_STATUS_LABELS,
+  VALIDATION_RULES,
+  ERROR_MESSAGES,
+  FORMAT_CONFIG,
+  APP_CONFIG,
+  API_CONFIG,
+  THEME_COLORS,
+  NOTIFICATION_CONFIG
 };

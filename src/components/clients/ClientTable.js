@@ -1,4 +1,4 @@
-// src/components/clients/ClientTable.js
+// src/components/clients/ClientTable.js - VERSÃO CORRIGIDA
 import React from 'react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -8,7 +8,8 @@ const ClientTable = ({
   onEditClient,
   onDeleteClient,
   onNewSubscription, 
-  onEditSubscription 
+  onEditSubscription,
+  onDeleteSubscription // NOVA PROP
 }) => {
   
   const getClientSubscriptions = (clientId) => {
@@ -33,6 +34,20 @@ const ClientTable = ({
         return { text: 'Inativo', class: 'bg-gray-100 text-gray-800' };
       default:
         return { text: 'Ativo', class: 'bg-green-100 text-green-800' };
+    }
+  };
+
+  // NOVA FUNÇÃO: Confirmar exclusão de assinatura
+  const handleDeleteSubscription = async (subscription, clientName) => {
+    const confirmMessage = `Tem certeza que deseja excluir a assinatura de ${formatCurrency(subscription.amount)} do cliente ${clientName}?`;
+    
+    if (window.confirm(confirmMessage)) {
+      try {
+        await onDeleteSubscription(subscription.id);
+        alert('Assinatura excluída com sucesso!');
+      } catch (error) {
+        alert(error.message);
+      }
     }
   };
 
@@ -119,25 +134,52 @@ const ClientTable = ({
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-900 mb-2">
                       {activeSubs} ativas / {clientSubs.length} total
                     </div>
                     {clientSubs.length > 0 && (
-                      <div className="text-xs text-gray-500 mt-1 space-y-1">
+                      <div className="text-xs text-gray-500 space-y-2">
                         {clientSubs.map((sub, index) => (
-                          <div key={sub.id}>
-                            <button
-                              onClick={() => onEditSubscription(sub, client)}
-                              className="text-blue-600 hover:text-blue-800 underline"
-                            >
-                              Assinatura #{index + 1} - {formatCurrency(sub.amount)}
-                            </button>
-                            <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {sub.status === 'active' ? 'Ativa' : 'Inativa'}
-                            </span>
+                          <div key={sub.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                            <div className="flex-1">
+                              <button
+                                onClick={() => onEditSubscription(sub, client)}
+                                className="text-blue-600 hover:text-blue-800 underline text-left"
+                              >
+                                Assinatura #{index + 1} - {formatCurrency(sub.amount)}
+                              </button>
+                              <div className="flex items-center mt-1">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {sub.status === 'active' ? 'Ativa' : 'Inativa'}
+                                </span>
+                                {sub.startDate && (
+                                  <span className="ml-2 text-xs text-gray-400">
+                                    Desde {formatDate(sub.startDate)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* NOVOS BOTÕES DE AÇÃO PARA ASSINATURA */}
+                            <div className="flex space-x-1 ml-2">
+                              <button
+                                onClick={() => onEditSubscription(sub, client)}
+                                className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs hover:bg-blue-200 transition-colors"
+                                title="Editar assinatura"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSubscription(sub, client.name)}
+                                className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs hover:bg-red-200 transition-colors"
+                                title="Excluir assinatura"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -168,7 +210,12 @@ const ClientTable = ({
                         ➕ Assinatura
                       </button>
                       <button 
-                        onClick={() => onDeleteClient(client.id)}
+                        onClick={() => {
+                          const confirmMessage = `Tem certeza que deseja excluir o cliente ${client.name}?`;
+                          if (window.confirm(confirmMessage)) {
+                            onDeleteClient(client.id);
+                          }
+                        }}
                         className="bg-red-100 text-red-800 px-3 py-1 rounded-md text-xs font-medium hover:bg-red-200 transition-colors"
                         title="Excluir Cliente"
                       >

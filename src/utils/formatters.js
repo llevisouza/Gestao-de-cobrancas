@@ -1,210 +1,259 @@
-// src/utils/formatters.js
+// src/utils/formatters.js - VERSÃO ATUALIZADA
+import { formatDate as formatDateUtil } from './dateUtils';
 
-/**
- * Formatar valores monetários para o padrão brasileiro
- * @param {number} value - Valor a ser formatado
- * @returns {string} Valor formatado (ex: R$ 1.234,56)
- */
+// Formatação de moeda
 export const formatCurrency = (value) => {
   if (value === null || value === undefined || isNaN(value)) {
     return 'R$ 0,00';
   }
   
-  return new Intl.NumberFormat('pt-BR', {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  
+  return numValue.toLocaleString('pt-BR', {
     style: 'currency',
-    currency: 'BRL'
-  }).format(value);
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 };
 
-/**
- * Formatar datas para o padrão brasileiro
- * @param {Date|string} date - Data a ser formatada
- * @returns {string} Data formatada (ex: 20/09/2024)
- */
-export const formatDate = (date) => {
-  if (!date) return '';
-  try {
-    let dateObj;
-    
-    if (date instanceof Date) {
-      dateObj = date;
-    } else if (typeof date === 'string') {
-      dateObj = new Date(date);
-    } else if (date.toDate && typeof date.toDate === 'function') {
-      // Firebase Timestamp
-      dateObj = date.toDate();
-    } else {
-      return '';
-    }
-
-    // Verificar se a data é válida
-    if (isNaN(dateObj.getTime())) {
-      return '';
-    }
-
-    return dateObj.toLocaleDateString('pt-BR');
-  } catch (error) {
-    console.error('Erro ao formatar data:', error);
-    return '';
-  }
+// Formatação de data - usar a função corrigida
+export const formatDate = (dateInput) => {
+  return formatDateUtil(dateInput);
 };
 
-/**
- * Formatar telefone no padrão brasileiro
- * @param {string} phone - Telefone a ser formatado
- * @returns {string} Telefone formatado (ex: (11) 99999-9999)
- */
+// Formatação de telefone
 export const formatPhone = (phone) => {
   if (!phone) return '';
-  // Remove todos os caracteres não numéricos
-  const numbers = phone.replace(/\D/g, '');
-  // Formatar conforme o tamanho
-  if (numbers.length === 11) {
-    // Celular: (11) 99999-9999
-    return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-  } else if (numbers.length === 10) {
-    // Fixo: (11) 9999-9999
-    return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-  }
   
-  return phone;
+  // Remove tudo que não for número
+  const numbers = phone.replace(/\D/g, '');
+  
+  // Aplica formatação baseada no tamanho
+  if (numbers.length <= 10) {
+    return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  } else {
+    return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  }
 };
 
-/**
- * Formatar CPF
- * @param {string} cpf - CPF a ser formatado
- * @returns {string} CPF formatado (ex: 123.456.789-00)
- */
+// Formatação de CPF
 export const formatCPF = (cpf) => {
   if (!cpf) return '';
-  // Remove todos os caracteres não numéricos
+  
+  // Remove tudo que não for número
   const numbers = cpf.replace(/\D/g, '');
-  // Formatar CPF
-  if (numbers.length === 11) {
-    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-  }
   
-  return cpf;
+  // Limita a 11 dígitos
+  const limitedNumbers = numbers.slice(0, 11);
+  
+  // Aplica formatação
+  return limitedNumbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 };
 
-/**
- * Formatar CNPJ
- * @param {string} cnpj - CNPJ a ser formatado
- * @returns {string} CNPJ formatado (ex: 12.345.678/0001-90)
- */
-export const formatCNPJ = (cnpj) => {
-  if (!cnpj) return '';
-  // Remove todos os caracteres não numéricos
-  const numbers = cnpj.replace(/\D/g, '');
-  // Formatar CNPJ
-  if (numbers.length === 14) {
-    return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-  }
-  
-  return cnpj;
-};
-
-/**
- * Remover formatação de strings numéricas
- * @param {string} value - Valor formatado
- * @returns {string} Apenas números
- */
+// Remover formatação (útil para salvar dados)
 export const removeFormatting = (value) => {
   if (!value) return '';
   return value.replace(/\D/g, '');
 };
 
-/**
- * Calcular dias entre duas datas
- * @param {Date|string} date1 - Data inicial
- * @param {Date|string} date2 - Data final
- * @returns {number} Número de dias
- */
-export const daysBetween = (date1, date2) => {
-  try {
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    const diffTime = Math.abs(d2 - d1);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  } catch (error) {
-    console.error('Erro ao calcular diferença entre datas:', error);
-    return 0;
-  }
+// Validação de email
+export const isValidEmail = (email) => {
+  if (!email) return false;
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
 };
 
-/**
- * Formatar número com separadores de milhares
- * @param {number} value - Valor numérico
- * @returns {string} Número formatado
- */
-export const formatNumber = (value) => {
-  if (value === null || value === undefined || isNaN(value)) {
+// Validação de CPF
+export const isValidCPF = (cpf) => {
+  if (!cpf) return false;
+  
+  const numbers = removeFormatting(cpf);
+  
+  // Verifica se tem 11 dígitos
+  if (numbers.length !== 11) return false;
+  
+  // Verifica se não são todos números iguais
+  if (/^(\d)\1{10}$/.test(numbers)) return false;
+  
+  // Validação do primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(numbers.charAt(i)) * (10 - i);
+  }
+  let firstDigit = (sum * 10) % 11;
+  if (firstDigit === 10) firstDigit = 0;
+  
+  if (firstDigit !== parseInt(numbers.charAt(9))) return false;
+  
+  // Validação do segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(numbers.charAt(i)) * (11 - i);
+  }
+  let secondDigit = (sum * 10) % 11;
+  if (secondDigit === 10) secondDigit = 0;
+  
+  return secondDigit === parseInt(numbers.charAt(10));
+};
+
+// Validação de telefone
+export const isValidPhone = (phone) => {
+  if (!phone) return false;
+  
+  const numbers = removeFormatting(phone);
+  return numbers.length >= 10 && numbers.length <= 11;
+};
+
+// Formatação de número (genérica)
+export const formatNumber = (number, decimals = 0) => {
+  if (number === null || number === undefined || isNaN(number)) {
     return '0';
   }
   
-  return new Intl.NumberFormat('pt-BR').format(value);
+  return parseFloat(number).toLocaleString('pt-BR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
 };
 
-/**
- * Truncar texto
- * @param {string} text - Texto a ser truncado
- * @param {number} maxLength - Tamanho máximo
- * @returns {string} Texto truncado
- */
+// Formatação de percentual
+export const formatPercentage = (value, decimals = 1) => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return '0%';
+  }
+  
+  return `${parseFloat(value).toFixed(decimals)}%`;
+};
+
+// Capitalizar primeira letra de cada palavra
+export const capitalizeWords = (text) => {
+  if (!text) return '';
+  
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+// Truncar texto
 export const truncateText = (text, maxLength = 50) => {
   if (!text) return '';
+  
   if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
-};
-
-/**
- * Capitalizar primeira letra
- * @param {string} text - Texto
- * @returns {string} Texto com primeira letra maiúscula
- */
-export const capitalize = (text) => {
-  if (!text) return '';
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-};
-
-/**
- * Validar email
- * @param {string} email - Email a ser validado
- * @returns {boolean} True se válido
- */
-export const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-/**
- * Validar CPF
- * @param {string} cpf - CPF a ser validado
- * @returns {boolean} True se válido
- */
-export const isValidCPF = (cpf) => {
-  if (!cpf) return false;
-  const numbers = cpf.replace(/\D/g, '');
   
-  if (numbers.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(numbers)) return false; // CPFs inválidos como 111.111.111-11
+  return text.slice(0, maxLength) + '...';
+};
+
+// Formatação de arquivo (tamanho)
+export const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
   
-  // Validação do dígito verificador
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(numbers[i]) * (10 - i);
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// Formatação de tempo decorrido
+export const formatTimeAgo = (dateString) => {
+  if (!dateString) return '';
+  
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'Agora mesmo';
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minuto${minutes > 1 ? 's' : ''} atrás`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} hora${hours > 1 ? 's' : ''} atrás`;
+    } else if (diffInSeconds < 2592000) {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days} dia${days > 1 ? 's' : ''} atrás`;
+    } else {
+      return formatDate(dateString);
+    }
+  } catch (error) {
+    return dateString;
   }
-  let digit = 11 - (sum % 11);
-  if (digit > 9) digit = 0;
-  if (parseInt(numbers[9]) !== digit) return false;
+};
+
+// Máscara genérica
+export const applyMask = (value, mask) => {
+  if (!value || !mask) return value;
   
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(numbers[i]) * (11 - i);
+  let maskedValue = '';
+  let valueIndex = 0;
+  
+  for (let i = 0; i < mask.length && valueIndex < value.length; i++) {
+    if (mask[i] === 'X') {
+      maskedValue += value[valueIndex];
+      valueIndex++;
+    } else {
+      maskedValue += mask[i];
+    }
   }
-  digit = 11 - (sum % 11);
-  if (digit > 9) digit = 0;
-  if (parseInt(numbers[10]) !== digit) return false;
   
-  return true;
+  return maskedValue;
+};
+
+// Limpar e validar entrada numérica
+export const cleanNumericInput = (value) => {
+  if (!value) return '';
+  
+  // Remove tudo exceto números, pontos e vírgulas
+  let cleaned = value.toString().replace(/[^\d.,]/g, '');
+  
+  // Substitui vírgula por ponto
+  cleaned = cleaned.replace(',', '.');
+  
+  // Remove pontos extras (manter apenas um)
+  const parts = cleaned.split('.');
+  if (parts.length > 2) {
+    cleaned = parts[0] + '.' + parts.slice(1).join('');
+  }
+  
+  return cleaned;
+};
+
+// Formatação de status
+export const formatStatus = (status) => {
+  const statusMap = {
+    'active': 'Ativo',
+    'inactive': 'Inativo',
+    'pending': 'Pendente',
+    'paid': 'Pago',
+    'overdue': 'Vencido',
+    'cancelled': 'Cancelado'
+  };
+  
+  return statusMap[status] || status;
+};
+
+export default {
+  formatCurrency,
+  formatDate,
+  formatPhone,
+  formatCPF,
+  removeFormatting,
+  isValidEmail,
+  isValidCPF,
+  isValidPhone,
+  formatNumber,
+  formatPercentage,
+  capitalizeWords,
+  truncateText,
+  formatFileSize,
+  formatTimeAgo,
+  applyMask,
+  cleanNumericInput,
+  formatStatus
 };

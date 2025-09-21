@@ -63,3 +63,4 @@ package-lock.json
 .env.backup
 node_modules
 
+evolution-api/

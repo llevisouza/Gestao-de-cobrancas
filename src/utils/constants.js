@@ -4,7 +4,8 @@ export const ROUTES = {
   DASHBOARD: 'dashboard',
   CLIENTS: 'clients',
   REPORTS: 'reports',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
+  WHATSAPP: 'whatsapp'
 };
 
 export const INVOICE_STATUS = {

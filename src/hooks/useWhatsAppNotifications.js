@@ -1,4 +1,4 @@
-// src/hooks/useWhatsAppNotifications.js
+// src/hooks/useWhatsAppNotifications.js - IMPLEMENTAÇÃO COMPLETA
 import { useState, useEffect, useCallback } from 'react';
 import { whatsappService } from '../services/whatsappService';
 
@@ -213,7 +213,7 @@ export const useWhatsAppNotifications = () => {
       
       if (!client || !client.phone) return;
       
-      const dueDate = new Date(invoice.dueDate);
+      const dueDate = new Date(invoice.dueDate + 'T12:00:00');
       const notification = { type: null, invoice, client, subscription };
       
       if (dueDate < today) {

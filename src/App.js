@@ -5,6 +5,7 @@ import { clientService, subscriptionService, invoiceService, seedService } from 
 import { ROUTES } from './utils/constants';
 
 // Componentes
+import WhatsAppManager from './components/whatsapp/WhatsAppManager';
 import Header from './components/common/Header';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import LoginPage from './components/auth/LoginPage';
@@ -115,14 +116,14 @@ function App() {
 
   // Aplicação principal
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header
-        user={user}
-        onLogout={logout}
-        currentView={currentView}
-        onViewChange={setCurrentView}
-        onCreateSampleData={handleCreateSampleData}
-      />
+  <div className="min-h-screen bg-gray-50">
+        <Header
+          user={user}
+          onLogout={logout}
+          currentView={currentView}
+          onViewChange={setCurrentView} // onViewChange já passa a função que precisamos
+          onCreateSampleData={handleCreateSampleData}
+        />
 
       <main>
         {dataLoading ? (
@@ -136,6 +137,7 @@ function App() {
                 invoices={invoices}
                 setInvoices={setInvoices}
                 clients={clients}
+                onNavigate={setCurrentView}
               />
             )}
             {currentView === ROUTES.CLIENTS && (
@@ -150,8 +152,17 @@ function App() {
               <ReportsPage
                 invoices={invoices}
                 clients={clients}
+                
               />
+              
             )}
+            {currentView === ROUTES.WHATSAPP && (
+              <WhatsAppManager
+                invoices={invoices}
+                clients={clients}
+                subscriptions={subscriptions}
+                />
+                )}
           </>
         )}
       </main>

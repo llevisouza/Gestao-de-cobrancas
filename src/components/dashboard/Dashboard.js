@@ -6,7 +6,7 @@ import InvoiceTable from './InvoiceTable';
 import WhatsAppQuickActions from './WhatsAppQuickActions'; // NOVO IMPORT
 import LoadingSpinner from '../common/LoadingSpinner';
 
-const Dashboard = () => {
+const Dashboard = ({ onNavigate }) => {
   const { 
     clients, 
     subscriptions, 
@@ -294,6 +294,7 @@ const Dashboard = () => {
               invoices={invoices}
               clients={clients}
               subscriptions={subscriptions}
+              onNavigate={onNavigate} 
             />
           </div>
         )}

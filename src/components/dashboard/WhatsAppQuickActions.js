@@ -1,10 +1,13 @@
-// src/components/dashboard/WhatsAppQuickActions.js
 import React, { useState } from 'react';
 import { useWhatsAppNotifications } from '../../hooks/useWhatsAppNotifications';
 import { formatCurrency } from '../../utils/formatters';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { ROUTES } from '../../utils/constants'; // Importar ROUTES
 
-const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
+// CORREÇÃO: Adicionar 'onNavigate' como propriedade
+const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) => {
+  
+  // CORREÇÃO: Todos os hooks devem estar DENTRO do componente
   const {
     isConnected,
     loading,
@@ -18,11 +21,9 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
   const [sendingId, setSendingId] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
-  // Calcular notificações pendentes
   const pendingNotifications = calculatePendingNotifications(invoices, clients, subscriptions);
   const totalPending = pendingNotifications.total;
 
-  // Pegar as 3 mais urgentes
   const urgentNotifications = [
     ...pendingNotifications.overdue.slice(0, 2),
     ...pendingNotifications.reminders.slice(0, 1)
@@ -36,14 +37,12 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
 
   const notificationsToShow = showAll ? allNotifications : urgentNotifications;
 
-  // Enviar notificação individual
   const handleSendNotification = async (notification) => {
     const { type, invoice, client, subscription } = notification;
     setSendingId(invoice.id);
     
     try {
       let result;
-      
       switch (type) {
         case 'overdue':
           result = await sendOverdueNotification(invoice, client, subscription);
@@ -56,7 +55,6 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
       }
 
       if (result.success) {
-        // Mostrar feedback visual
         const element = document.getElementById(`notification-${invoice.id}`);
         if (element) {
           element.style.backgroundColor = '#f0fdf4';
@@ -66,8 +64,6 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
             element.style.border = '';
           }, 3000);
         }
-        
-        // Feedback via toast (pode implementar sistema de toast)
         console.log(`✅ WhatsApp enviado para ${client.name}`);
       } else {
         alert(`Erro ao enviar WhatsApp: ${result.error}`);
@@ -145,7 +141,6 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
 
   return (
     <div className="bg-white rounded-lg shadow border">
-      {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -155,28 +150,23 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
                 Cobranças WhatsApp
               </h3>
             </div>
-            
             {totalPending > 0 && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                 {totalPending} pendente{totalPending > 1 ? 's' : ''}
               </span>
             )}
           </div>
-          
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
             <span className="text-xs text-gray-500">{getConnectionStatusText()}</span>
           </div>
         </div>
       </div>
-
-      {/* Lista de Notificações */}
       <div className="divide-y divide-gray-200">
         {notificationsToShow.map((notification) => {
           const { invoice, client, subscription } = notification;
           const daysInfo = getDaysInfo(notification);
           const isSending = sendingId === invoice.id;
-          
           return (
             <div
               key={invoice.id}
@@ -196,24 +186,20 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
                       </div>
                     </div>
                   </div>
-                  
                   <div className="flex items-center space-x-4 text-xs text-gray-500">
                     <span className={`font-medium ${daysInfo.color}`}>
                       {daysInfo.text}
                     </span>
-                    
                     {subscription && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                         🔄 {subscription.name}
                       </span>
                     )}
-                    
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                       {getTypeText(notification.type)}
                     </span>
                   </div>
                 </div>
-                
                 <div className="ml-4">
                   <button
                     onClick={() => handleSendNotification(notification)}
@@ -248,8 +234,6 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
           );
         })}
       </div>
-
-      {/* Footer com ações */}
       <div className="px-6 py-4 border-t border-gray-200">
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
@@ -259,7 +243,6 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
               <>Mostrando {Math.min(3, totalPending)} de {totalPending} notificações</>
             )}
           </div>
-          
           <div className="flex items-center space-x-3">
             {totalPending > 3 && (
               <button
@@ -269,20 +252,14 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions }) => {
                 {showAll ? 'Ver menos' : `Ver todas (${totalPending})`}
               </button>
             )}
-            
             <button
-              onClick={() => {
-                // Navegar para página completa de WhatsApp
-                console.log('Navegando para WhatsApp Manager...');
-              }}
+              onClick={() => onNavigate(ROUTES.WHATSAPP)}
               className="btn-primary text-sm"
             >
               📱 Gerenciar WhatsApp
             </button>
           </div>
         </div>
-        
-        {/* Informações de status */}
         {!isConnected && (
           <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
             <div className="flex">

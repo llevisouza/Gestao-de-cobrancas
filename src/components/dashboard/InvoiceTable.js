@@ -1,32 +1,14 @@
-// src/components/dashboard/InvoiceTable.js - VERSÃO MELHORADA
+// src/components/dashboard/InvoiceTable.js - VERSÃO CORRIGIDA
 import React, { useMemo, useState } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import { getDaysDifference, getCurrentDate } from '../../utils/dateUtils';
 import { INVOICE_STATUS, INVOICE_STATUS_LABELS } from '../../utils/constants';
 
 const InvoiceTable = ({ invoices, clients }) => {
   const { updateInvoice } = useFirestore();
-  const [filter, setFilter] = useState('all'); // Novo: filtro
-  const [sortBy, setSortBy] = useState('dueDate'); // Novo: ordenação
-
-  // NOVO: Função melhorada para calcular diferença de dias
-  const getDaysDifference = (dateString) => {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const targetDate = new Date(dateString + 'T12:00:00');
-      targetDate.setHours(0, 0, 0, 0);
-      
-      const diffTime = targetDate.getTime() - today.getTime();
-      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-      
-      return diffDays;
-    } catch (error) {
-      console.error('Erro ao calcular diferença de dias:', error);
-      return 0;
-    }
-  };
+  const [filter, setFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('dueDate');
 
   // Memoizar a busca de nomes dos clientes
   const clientsMap = useMemo(() => {
@@ -37,18 +19,18 @@ const InvoiceTable = ({ invoices, clients }) => {
     return map;
   }, [clients]);
 
-  // NOVO: Filtrar e ordenar faturas
+  // CORREÇÃO: Processar faturas com status correto
   const processedInvoices = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getCurrentDate();
     
     return [...invoices]
       .map(invoice => {
-        const dueDate = new Date(invoice.dueDate + 'T12:00:00');
-        dueDate.setHours(0, 0, 0, 0);
-        
+        // Verificar se a fatura está realmente vencida
         let correctedStatus = invoice.status;
-        if (invoice.status === 'pending' && dueDate < today) {
+        const diffDays = getDaysDifference(invoice.dueDate, today);
+        
+        // Se está marcada como pending mas a data já passou, marcar como overdue
+        if (invoice.status === 'pending' && diffDays < 0) {
           correctedStatus = 'overdue';
         }
         
@@ -68,10 +50,10 @@ const InvoiceTable = ({ invoices, clients }) => {
         }
         return 0;
       })
-      .slice(0, 20); // Limitar a 20 mais recentes
+      .slice(0, 20);
   }, [invoices, filter, sortBy]);
 
-  // NOVO: Estatísticas das faturas filtradas
+  // Estatísticas das faturas
   const stats = useMemo(() => {
     const filtered = processedInvoices;
     return {
@@ -86,7 +68,6 @@ const InvoiceTable = ({ invoices, clients }) => {
   const handleStatusChange = async (invoiceId, newStatus) => {
     try {
       await updateInvoice(invoiceId, { status: newStatus });
-      // NOVO: Feedback visual simples
       if (newStatus === 'paid') {
         alert('✅ Fatura marcada como paga!');
       }
@@ -110,15 +91,6 @@ const InvoiceTable = ({ invoices, clients }) => {
     );
   };
 
-  // NOVO: Função para obter ícone de recorrência
-  const getRecurrenceIcon = (invoice) => {
-    if (!invoice.subscriptionId) return '📄'; // Fatura avulsa
-    
-    // Aqui você poderia buscar a assinatura para pegar o tipo
-    // Por simplicidade, vamos usar os tipos mais comuns
-    return '🔄'; // Recorrente
-  };
-
   const getClientData = (clientId) => {
     const client = clientsMap.get(clientId);
     return {
@@ -128,6 +100,7 @@ const InvoiceTable = ({ invoices, clients }) => {
     };
   };
 
+  // CORREÇÃO: Função de dias corrigida
   const getDaysInfo = (invoice) => {
     const diffDays = getDaysDifference(invoice.dueDate);
 
@@ -158,14 +131,14 @@ const InvoiceTable = ({ invoices, clients }) => {
     
     if (diffDays <= 3) {
       return { 
-        text: `⏰ ${diffDays} dias restantes`, 
+        text: `⏰ ${diffDays} dia${diffDays > 1 ? 's' : ''} restante${diffDays > 1 ? 's' : ''}`, 
         class: 'text-yellow-600 font-medium',
         bgClass: 'bg-yellow-50'
       };
     }
     
     return { 
-      text: `📅 ${diffDays} dias restantes`, 
+      text: `📅 ${diffDays} dia${diffDays > 1 ? 's' : ''} restante${diffDays > 1 ? 's' : ''}`, 
       class: 'text-gray-600',
       bgClass: 'bg-gray-50'
     };
@@ -188,7 +161,7 @@ const InvoiceTable = ({ invoices, clients }) => {
 
   return (
     <div className="card">
-      {/* NOVO: Header melhorado com filtros e estatísticas */}
+      {/* Header com filtros e estatísticas */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
           <div>
@@ -200,34 +173,32 @@ const InvoiceTable = ({ invoices, clients }) => {
             </p>
           </div>
 
-          {/* NOVO: Filtros */}
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-            <div className="flex space-x-2">
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">Todas</option>
-                <option value="pending">Pendentes</option>
-                <option value="paid">Pagas</option>
-                <option value="overdue">Vencidas</option>
-              </select>
+          {/* Filtros */}
+          <div className="flex space-x-2">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">Todas</option>
+              <option value="pending">Pendentes</option>
+              <option value="paid">Pagas</option>
+              <option value="overdue">Vencidas</option>
+            </select>
 
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="dueDate">Por Data</option>
-                <option value="amount">Por Valor</option>
-                <option value="status">Por Status</option>
-              </select>
-            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="dueDate">Por Data</option>
+              <option value="amount">Por Valor</option>
+              <option value="status">Por Status</option>
+            </select>
           </div>
         </div>
 
-        {/* NOVO: Estatísticas rápidas */}
+        {/* Estatísticas rápidas */}
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="text-center p-3 bg-white rounded-lg border">
             <div className="text-lg font-semibold text-blue-600">{stats.total}</div>
@@ -263,7 +234,6 @@ const InvoiceTable = ({ invoices, clients }) => {
             {processedInvoices.map(invoice => {
               const daysInfo = getDaysInfo(invoice);
               const clientData = getClientData(invoice.clientId);
-              const recurrenceIcon = getRecurrenceIcon(invoice);
               
               return (
                 <tr 
@@ -295,7 +265,7 @@ const InvoiceTable = ({ invoices, clients }) => {
                         </div>
                         <div className="flex items-center space-x-2 mt-1">
                           <div className="text-xs text-gray-400">
-                            {recurrenceIcon} Gerado: {formatDate(invoice.generationDate)}
+                            Gerado: {formatDate(invoice.generationDate)}
                           </div>
                           {invoice.subscriptionId && (
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
@@ -390,22 +360,16 @@ const InvoiceTable = ({ invoices, clients }) => {
         </table>
       </div>
 
-      {/* NOVO: Footer com informações adicionais */}
+      {/* Footer com informações */}
       {invoices.length > 20 && (
         <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center">
           <p className="text-sm text-gray-600">
             Mostrando as 20 faturas mais recentes de {invoices.length} total.
           </p>
-          <button 
-            className="text-sm text-primary-600 hover:text-primary-800 font-medium mt-1"
-            onClick={() => alert('🚀 Em breve: Página completa de faturas!')}
-          >
-            Ver todas as faturas →
-          </button>
         </div>
       )}
 
-      {/* NOVO: Resumo financeiro rápido */}
+      {/* Resumo financeiro */}
       <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-blue-50 border-t border-gray-200">
         <div className="flex flex-wrap items-center justify-between space-y-2 lg:space-y-0">
           <div className="text-sm text-gray-700">

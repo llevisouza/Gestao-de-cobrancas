@@ -1,4 +1,4 @@
-// src/utils/dateUtils.js - VERSÃO FINAL CORRIGIDA
+// src/utils/dateUtils.js - VERSÃO COMPLETAMENTE CORRIGIDA
 export const formatDate = (dateInput) => {
   if (!dateInput) return '';
   
@@ -11,8 +11,9 @@ export const formatDate = (dateInput) => {
     } 
     // Se é uma string de data simples YYYY-MM-DD
     else if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // IMPORTANTE: Adicionar T12:00:00 para evitar problema de timezone
-      date = new Date(dateInput + 'T12:00:00');
+      // Criar data local sem problemas de timezone
+      const [year, month, day] = dateInput.split('-');
+      date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     } 
     // Outros casos
     else {
@@ -36,7 +37,7 @@ export const formatDate = (dateInput) => {
   }
 };
 
-// Função para obter data atual no formato correto (FUNDAMENTAL)
+// Função para obter data atual no formato YYYY-MM-DD
 export const getCurrentDate = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -46,34 +47,33 @@ export const getCurrentDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-// Função CORRIGIDA para calcular diferença em dias
+// Função TOTALMENTE CORRIGIDA para calcular diferença em dias
 export const getDaysDifference = (dateString1, dateString2 = null) => {
   try {
-    console.log('[DEBUG] Calculando diferença:', { dateString1, dateString2 });
-    
     // Data de comparação (hoje se não especificada)
     const today = dateString2 || getCurrentDate();
     
-    // Criar datas sempre ao meio-dia para evitar problemas de timezone
-    const date1 = new Date(dateString1 + 'T12:00:00');
-    const date2 = new Date(today + 'T12:00:00');
+    // Extrair apenas as partes da data (sem horário)
+    const [year1, month1, day1] = dateString1.split('T')[0].split('-').map(Number);
+    const [year2, month2, day2] = today.split('T')[0].split('-').map(Number);
     
-    // Zerar horas para comparação exata
-    date1.setHours(0, 0, 0, 0);
-    date2.setHours(0, 0, 0, 0);
-    
-    console.log('[DEBUG] Datas criadas:', { 
-      date1: date1.toDateString(), 
-      date2: date2.toDateString() 
-    });
+    // Criar datas locais sem problemas de timezone
+    const date1 = new Date(year1, month1 - 1, day1);
+    const date2 = new Date(year2, month2 - 1, day2);
     
     // Calcular diferença em milissegundos
     const diffTime = date1.getTime() - date2.getTime();
     
-    // Converter para dias
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    // Converter para dias (24 * 60 * 60 * 1000 = 86400000)
+    const diffDays = Math.round(diffTime / 86400000);
     
-    console.log('[DEBUG] Diferença calculada:', diffDays, 'dias');
+    console.log('[DEBUG] Diferença calculada:', { 
+      dateString1, 
+      today, 
+      date1: date1.toDateString(), 
+      date2: date2.toDateString(), 
+      diffDays 
+    });
     
     return diffDays;
   } catch (error) {
@@ -87,9 +87,7 @@ export const isToday = (dateString) => {
   try {
     const today = getCurrentDate();
     const inputDate = dateString.split('T')[0]; // Pegar só a parte da data
-    const result = inputDate === today;
-    console.log('[DEBUG] IsToday:', { inputDate, today, result });
-    return result;
+    return inputDate === today;
   } catch (error) {
     console.error('Erro ao verificar se é hoje:', error);
     return false;
@@ -100,9 +98,7 @@ export const isToday = (dateString) => {
 export const isPast = (dateString) => {
   try {
     const diffDays = getDaysDifference(dateString);
-    const result = diffDays < 0;
-    console.log('[DEBUG] IsPast:', { dateString, diffDays, result });
-    return result;
+    return diffDays < 0;
   } catch (error) {
     console.error('Erro ao verificar se é passado:', error);
     return false;
@@ -113,9 +109,7 @@ export const isPast = (dateString) => {
 export const isFuture = (dateString) => {
   try {
     const diffDays = getDaysDifference(dateString);
-    const result = diffDays > 0;
-    console.log('[DEBUG] IsFuture:', { dateString, diffDays, result });
-    return result;
+    return diffDays > 0;
   } catch (error) {
     console.error('Erro ao verificar se é futuro:', error);
     return false;
@@ -125,14 +119,15 @@ export const isFuture = (dateString) => {
 // Função para adicionar dias a uma data
 export const addDays = (dateString, days) => {
   try {
-    const date = new Date(dateString + 'T12:00:00');
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     date.setDate(date.getDate() + days);
     
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const newYear = date.getFullYear();
+    const newMonth = String(date.getMonth() + 1).padStart(2, '0');
+    const newDay = String(date.getDate()).padStart(2, '0');
     
-    return `${year}-${month}-${day}`;
+    return `${newYear}-${newMonth}-${newDay}`;
   } catch (error) {
     console.error('Erro ao adicionar dias:', error);
     return dateString;
@@ -159,7 +154,7 @@ export const endOfYear = (date = new Date()) => {
   return new Date(date.getFullYear(), 11, 31);
 };
 
-// Função NOVA: Calcular data de vencimento baseada no dia do mês
+// Função para calcular data de vencimento baseada no dia do mês
 export const calculateDueDateByDayOfMonth = (dayOfMonth, referenceMonth = null, referenceYear = null) => {
   try {
     const today = new Date();
@@ -167,11 +162,11 @@ export const calculateDueDateByDayOfMonth = (dayOfMonth, referenceMonth = null, 
     const month = referenceMonth !== null ? referenceMonth : today.getMonth(); // 0-11
     
     // Criar data para o dia especificado do mês
-    let dueDate = new Date(year, month, dayOfMonth, 12, 0, 0);
+    let dueDate = new Date(year, month, dayOfMonth);
     
     // Se a data já passou neste mês (só para mês atual), usar próximo mês
     if (referenceMonth === null && dueDate <= today) {
-      dueDate = new Date(year, month + 1, dayOfMonth, 12, 0, 0);
+      dueDate = new Date(year, month + 1, dayOfMonth);
     }
     
     // Formatar como YYYY-MM-DD
@@ -179,17 +174,7 @@ export const calculateDueDateByDayOfMonth = (dayOfMonth, referenceMonth = null, 
     const dueDateMonth = String(dueDate.getMonth() + 1).padStart(2, '0');
     const dueDateDay = String(dueDate.getDate()).padStart(2, '0');
     
-    const result = `${dueDateYear}-${dueDateMonth}-${dueDateDay}`;
-    
-    console.log('[DEBUG] Data de vencimento por dia do mês:', {
-      dayOfMonth,
-      referenceMonth,
-      referenceYear,
-      calculatedDate: dueDate.toDateString(),
-      result
-    });
-    
-    return result;
+    return `${dueDateYear}-${dueDateMonth}-${dueDateDay}`;
   } catch (error) {
     console.error('Erro ao calcular data de vencimento:', error);
     return getCurrentDate();
@@ -201,8 +186,9 @@ export const isValidDate = (dateString) => {
   if (!dateString) return false;
   
   try {
-    const date = new Date(dateString + 'T12:00:00');
-    return !isNaN(date.getTime()) && dateString.match(/^\d{4}-\d{2}-\d{2}$/);
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return !isNaN(date.getTime()) && dateString.match(/^\d{4}-\d{2}-\d{2}/);
   } catch (error) {
     return false;
   }
@@ -211,18 +197,6 @@ export const isValidDate = (dateString) => {
 // Função para obter data/hora atual ISO
 export const getCurrentDateTime = () => {
   return new Date().toISOString();
-};
-
-// Debug: Função para logging de datas
-export const debugDate = (label, dateString) => {
-  console.log(`[DATE DEBUG] ${label}:`, {
-    input: dateString,
-    currentDate: getCurrentDate(),
-    daysDiff: getDaysDifference(dateString),
-    isPast: isPast(dateString),
-    isFuture: isFuture(dateString),
-    isToday: isToday(dateString)
-  });
 };
 
 // Função para obter informações detalhadas de uma data
@@ -255,6 +229,5 @@ export default {
   endOfYear,
   calculateDueDateByDayOfMonth,
   isValidDate,
-  debugDate,
   getDateInfo
 };

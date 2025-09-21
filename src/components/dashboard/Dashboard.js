@@ -223,25 +223,6 @@ const Dashboard = ({ onNavigate }) => {
             {/* Relógio e Ações */}
             <div className="flex items-center gap-6">
               
-              {/* Relógio Premium */}
-              <div className="hidden xl:block bg-white rounded-2xl p-6 shadow-lg border border-gray-100 min-w-[200px]">
-                <div className="text-center">
-                  <div className="text-3xl font-mono font-bold text-orange-600 mb-1">
-                    {currentTime.toLocaleTimeString('pt-BR')}
-                  </div>
-                  <div className="text-sm text-gray-500 mb-2">
-                    {currentTime.toLocaleDateString('pt-BR', { 
-                      weekday: 'long', 
-                      day: '2-digit', 
-                      month: 'long' 
-                    })}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Fuso: America/São_Paulo
-                  </div>
-                </div>
-              </div>
-              
               {/* Ações Rápidas */}
               <div className="flex gap-3">
                 <button 

@@ -1,6 +1,7 @@
-// src/components/reports/ReportsPage.js - VERSÃO PREMIUM MELHORADA
+// src/components/reports/ReportsPage.js - VERSÃO CORRIGIDA FINAL
 import React, { useState, useMemo } from 'react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { getDaysDifference, getCurrentDate } from '../../utils/dateUtils';
 import { INVOICE_STATUS_LABELS } from '../../utils/constants';
 
 const ReportsPage = ({ invoices, clients }) => {
@@ -18,17 +19,17 @@ const ReportsPage = ({ invoices, clients }) => {
     direction: 'desc'
   });
   
-  const [viewMode, setViewMode] = useState('table'); // table, cards, chart
+  const [viewMode, setViewMode] = useState('table');
   const [selectedInvoices, setSelectedInvoices] = useState([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // Períodos rápidos melhorados
+  // Períodos rápidos
   const quickPeriods = [
     {
       label: 'Hoje',
       icon: '📅',
       getValue: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getCurrentDate();
         return { startDate: today, endDate: today };
       }
     },
@@ -51,7 +52,7 @@ const ReportsPage = ({ invoices, clients }) => {
       getValue: () => {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const end = new Date().toISOString().split('T')[0];
+        const end = getCurrentDate();
         return { startDate: start, endDate: end };
       }
     },
@@ -64,43 +65,26 @@ const ReportsPage = ({ invoices, clients }) => {
         const end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
         return { startDate: start, endDate: end };
       }
-    },
-    {
-      label: 'Últimos 3 meses',
-      icon: '📆',
-      getValue: () => {
-        const end = new Date();
-        const start = new Date();
-        start.setMonth(start.getMonth() - 3);
-        return {
-          startDate: start.toISOString().split('T')[0],
-          endDate: end.toISOString().split('T')[0]
-        };
-      }
-    },
-    {
-      label: 'Este Ano',
-      icon: '🗓️',
-      getValue: () => {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const end = new Date().toISOString().split('T')[0];
-        return { startDate: start, endDate: end };
-      }
     }
   ];
 
-  // Filtrar faturas com filtros avançados
+  // Filtrar faturas corretamente
   const filteredInvoices = useMemo(() => {
     return invoices.filter(invoice => {
-      const invoiceDate = new Date(invoice.dueDate);
-      const startDate = new Date(filters.startDate);
-      const endDate = new Date(filters.endDate);
+      // Filtro por data - usar dueDate da fatura
+      const invoiceDueDate = new Date(invoice.dueDate + 'T12:00:00');
+      const startDate = new Date(filters.startDate + 'T00:00:00');
+      const endDate = new Date(filters.endDate + 'T23:59:59');
       
-      endDate.setHours(23, 59, 59, 999);
+      const dateInRange = invoiceDueDate >= startDate && invoiceDueDate <= endDate;
       
-      const dateInRange = invoiceDate >= startDate && invoiceDate <= endDate;
-      const statusMatch = filters.status === 'all' || invoice.status === filters.status;
+      // Corrigir status se necessário
+      let actualStatus = invoice.status;
+      if (invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0) {
+        actualStatus = 'overdue';
+      }
+      
+      const statusMatch = filters.status === 'all' || actualStatus === filters.status;
       const clientMatch = filters.client === 'all' || invoice.clientId === filters.client;
       
       // Filtros de valor
@@ -134,8 +118,9 @@ const ReportsPage = ({ invoices, clients }) => {
           bValue = new Date(b.dueDate);
           break;
         case 'status':
-          aValue = a.status;
-          bValue = b.status;
+          // Corrigir status para ordenação
+          aValue = a.status === 'pending' && getDaysDifference(a.dueDate) < 0 ? 'overdue' : a.status;
+          bValue = b.status === 'pending' && getDaysDifference(b.dueDate) < 0 ? 'overdue' : b.status;
           break;
         default:
           return 0;
@@ -147,41 +132,50 @@ const ReportsPage = ({ invoices, clients }) => {
     });
   }, [filteredInvoices, sortConfig, clients]);
 
-  // Calcular métricas avançadas
+  // Calcular métricas
   const metrics = useMemo(() => {
     const total = filteredInvoices.length;
-    const paid = filteredInvoices.filter(inv => inv.status === 'paid').length;
-    const pending = filteredInvoices.filter(inv => inv.status === 'pending').length;
-    const overdue = filteredInvoices.filter(inv => inv.status === 'overdue').length;
     
-    const totalRevenue = filteredInvoices
-      .filter(inv => inv.status === 'paid')
+    // Corrigir status para cálculos
+    const correctedInvoices = filteredInvoices.map(invoice => ({
+      ...invoice,
+      actualStatus: invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0 ? 'overdue' : invoice.status
+    }));
+    
+    const paid = correctedInvoices.filter(inv => inv.actualStatus === 'paid').length;
+    const pending = correctedInvoices.filter(inv => inv.actualStatus === 'pending').length;
+    const overdue = correctedInvoices.filter(inv => inv.actualStatus === 'overdue').length;
+    
+    const totalRevenue = correctedInvoices
+      .filter(inv => inv.actualStatus === 'paid')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
       
-    const pendingRevenue = filteredInvoices
-      .filter(inv => inv.status === 'pending')
+    const pendingRevenue = correctedInvoices
+      .filter(inv => inv.actualStatus === 'pending')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
-    const overdueRevenue = filteredInvoices
-      .filter(inv => inv.status === 'overdue')
+    const overdueRevenue = correctedInvoices
+      .filter(inv => inv.actualStatus === 'overdue')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
-    // Métricas de performance
     const paymentRate = total > 0 ? (paid / total * 100) : 0;
-    const averageAmount = total > 0 ? filteredInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0) / total : 0;
+    const averageAmount = total > 0 ? correctedInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0) / total : 0;
     
     // Análise por cliente
-    const clientsData = clients.map(client => {
-      const clientInvoices = filteredInvoices.filter(inv => inv.clientId === client.id);
-      return {
-        id: client.id,
-        name: client.name,
-        totalInvoices: clientInvoices.length,
-        totalAmount: clientInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0),
-        paidAmount: clientInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0),
-        paymentRate: clientInvoices.length > 0 ? (clientInvoices.filter(inv => inv.status === 'paid').length / clientInvoices.length * 100) : 0
-      };
-    }).filter(client => client.totalInvoices > 0).sort((a, b) => b.totalAmount - a.totalAmount);
+    const clientsData = clients
+      .map(client => {
+        const clientInvoices = correctedInvoices.filter(inv => inv.clientId === client.id);
+        return {
+          id: client.id,
+          name: client.name,
+          totalInvoices: clientInvoices.length,
+          totalAmount: clientInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0),
+          paidAmount: clientInvoices.filter(inv => inv.actualStatus === 'paid').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0),
+          paymentRate: clientInvoices.length > 0 ? (clientInvoices.filter(inv => inv.actualStatus === 'paid').length / clientInvoices.length * 100) : 0
+        };
+      })
+      .filter(client => client.totalInvoices > 0)
+      .sort((a, b) => b.totalAmount - a.totalAmount);
 
     return { 
       total, paid, pending, overdue, 
@@ -216,7 +210,7 @@ const ReportsPage = ({ invoices, clients }) => {
   const clearFilters = () => {
     setFilters({
       startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0],
+      endDate: getCurrentDate(),
       status: 'all',
       client: 'all',
       minAmount: '',
@@ -224,23 +218,28 @@ const ReportsPage = ({ invoices, clients }) => {
     });
   };
 
-  // Exportar dados melhorado
+  // Exportar dados
   const exportToCSV = () => {
     const headers = ['Cliente', 'Descrição', 'Valor', 'Vencimento', 'Status', 'Data Pagamento'];
-    const csvData = sortedInvoices.map(invoice => [
-      getClientName(invoice.clientId),
-      invoice.description || 'Sem descrição',
-      `R$ ${parseFloat(invoice.amount || 0).toFixed(2).replace('.', ',')}`,
-      formatDate(invoice.dueDate),
-      INVOICE_STATUS_LABELS[invoice.status] || invoice.status,
-      invoice.paidDate ? formatDate(invoice.paidDate) : '-'
-    ]);
+    const csvData = sortedInvoices.map(invoice => {
+      // Corrigir status para export
+      const actualStatus = invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0 ? 'overdue' : invoice.status;
+      
+      return [
+        getClientName(invoice.clientId),
+        invoice.description || 'Sem descrição',
+        `R$ ${parseFloat(invoice.amount || 0).toFixed(2).replace('.', ',')}`,
+        formatDate(invoice.dueDate),
+        INVOICE_STATUS_LABELS[actualStatus] || actualStatus,
+        invoice.paidDate ? formatDate(invoice.paidDate) : '-'
+      ];
+    });
 
     const csvContent = [headers, ...csvData]
       .map(row => row.map(field => `"${field}"`).join(','))
       .join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -265,23 +264,53 @@ const ReportsPage = ({ invoices, clients }) => {
 
   const selectAllInvoices = () => {
     setSelectedInvoices(
-      selectedInvoices.length === sortedInvoices.length 
+      selectedInvoices.length === sortedInvoices.length && sortedInvoices.length > 0
         ? [] 
         : sortedInvoices.map(inv => inv.id)
     );
+  };
+
+  const handleBulkAction = (action) => {
+    if (selectedInvoices.length === 0) {
+      alert('Selecione pelo menos uma fatura');
+      return;
+    }
+
+    switch (action) {
+      case 'mark_paid':
+        if (window.confirm(`Marcar ${selectedInvoices.length} faturas como pagas?`)) {
+          alert('🚀 Em breve: Ação em lote - Marcar como pago');
+        }
+        break;
+      case 'send_reminder':
+        if (window.confirm(`Enviar lembretes para ${selectedInvoices.length} faturas?`)) {
+          alert('🚀 Em breve: Ação em lote - Enviar lembretes');
+        }
+        break;
+      case 'export_selected':
+        alert('🚀 Em breve: Exportar faturas selecionadas');
+        break;
+      case 'delete':
+        if (window.confirm(`ATENÇÃO: Excluir ${selectedInvoices.length} faturas permanentemente?`)) {
+          alert('🚀 Em breve: Ação em lote - Excluir faturas');
+        }
+        break;
+      default:
+        break;
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
       <div className="dashboard-container">
         
-        {/* Header Premium */}
+        {/* Header */}
         <div className="dashboard-header">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
             <div className="flex-1">
               <h1 className="dashboard-title flex items-center gap-3">
                 <span className="text-3xl">📊</span>
-                Relatórios Avançados
+                Relatórios
               </h1>
               <p className="dashboard-subtitle">
                 Análise detalhada das suas faturas e performance financeira
@@ -312,14 +341,14 @@ const ReportsPage = ({ invoices, clients }) => {
               </div>
               
               {/* Botões de Export */}
-              <button onClick={exportToCSV} className="btn-success px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
+              <button onClick={exportToCSV} className="btn-success px-4 py-2 rounded-lg shadow-sm">
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
                 CSV
               </button>
               
-              <button onClick={exportToPDF} className="btn-primary px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
+              <button onClick={exportToPDF} className="btn-primary px-4 py-2 rounded-lg shadow-sm">
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
                 </svg>
@@ -329,13 +358,15 @@ const ReportsPage = ({ invoices, clients }) => {
           </div>
         </div>
 
-        {/* Filtros Premium */}
+        {/* Filtros */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <span>🔍</span>
+            Filtros Avançados
+          </h3>
+          
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span>🔍</span>
-              Filtros Avançados
-            </h3>
+            <div></div>
             <button
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
@@ -350,21 +381,21 @@ const ReportsPage = ({ invoices, clients }) => {
           {/* Períodos Rápidos */}
           <div className="mb-6">
             <p className="text-sm font-medium text-gray-700 mb-3">Períodos Rápidos</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {quickPeriods.map((period, index) => (
                 <button
                   key={index}
                   onClick={() => applyQuickPeriod(period)}
-                  className="flex items-center justify-center gap-2 p-3 text-sm border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 group"
+                  className="flex items-center justify-center gap-2 p-3 text-sm border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200"
                 >
-                  <span className="text-lg group-hover:scale-110 transition-transform duration-200">{period.icon}</span>
+                  <span className="text-lg">{period.icon}</span>
                   <span className="font-medium">{period.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Filtros Básicos */}
+          {/* Filtros Principais */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -464,33 +495,32 @@ const ReportsPage = ({ invoices, clients }) => {
                   <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
-                  Limpar Filtros
+                  Limpar
                 </button>
               </div>
             </div>
           )}
+
+          <div className="flex justify-end mt-4">
+            <p className="text-sm text-gray-600">
+              {filteredInvoices.length} de {invoices.length} faturas encontradas
+            </p>
+          </div>
         </div>
 
         {/* KPIs dos Relatórios */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl">
-                📄
-              </div>
-              <div className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                Total
-              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl">📄</div>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">{metrics.total}</div>
             <div className="text-sm text-gray-600">Faturas Encontradas</div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-2xl">
-                💰
-              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-2xl">💰</div>
               <div className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">
                 {metrics.paymentRate.toFixed(1)}%
               </div>
@@ -502,46 +532,31 @@ const ReportsPage = ({ invoices, clients }) => {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center text-2xl">
-                ⏳
-              </div>
-              <div className="text-xs font-medium px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">
-                Pendente
-              </div>
+              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center text-2xl">⏳</div>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">{metrics.pending}</div>
-            <div className="text-sm text-gray-600">Valor Pendente</div>
+            <div className="text-sm text-gray-600">Pendentes</div>
             <div className="text-xs text-yellow-600 font-medium mt-1">
               {formatCurrency(metrics.pendingRevenue)}
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">
-                ⚠️
-              </div>
-              <div className="text-xs font-medium px-2 py-1 bg-red-100 text-red-700 rounded-full">
-                Urgente
-              </div>
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">⚠️</div>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">{metrics.overdue}</div>
-            <div className="text-sm text-gray-600">Faturas Vencidas</div>
+            <div className="text-sm text-gray-600">Vencidas</div>
             <div className="text-xs text-red-600 font-medium mt-1">
               {formatCurrency(metrics.overdueRevenue)}
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl">
-                📊
-              </div>
-              <div className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-                Média
-              </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl">📊</div>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">
               {formatCurrency(metrics.averageAmount)}
@@ -612,7 +627,7 @@ const ReportsPage = ({ invoices, clients }) => {
           </div>
         )}
 
-        {/* Tabela/Cards de Faturas */}
+        {/* Tabelas/Cards por modo de visualização */}
         {viewMode === 'table' && (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -626,9 +641,26 @@ const ReportsPage = ({ invoices, clients }) => {
                     <span className="text-sm text-gray-600">
                       {selectedInvoices.length} selecionadas
                     </span>
-                    <button className="btn-primary text-sm py-1 px-3 rounded-lg">
-                      Ações em Lote
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleBulkAction('mark_paid')}
+                        className="btn-success text-sm py-1 px-3 rounded-lg"
+                      >
+                        ✅ Marcar Pagas
+                      </button>
+                      <button 
+                        onClick={() => handleBulkAction('send_reminder')}
+                        className="btn-primary text-sm py-1 px-3 rounded-lg"
+                      >
+                        📧 Enviar Lembretes
+                      </button>
+                      <button 
+                        onClick={() => handleBulkAction('export_selected')}
+                        className="btn-secondary text-sm py-1 px-3 rounded-lg"
+                      >
+                        📄 Exportar
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -651,7 +683,7 @@ const ReportsPage = ({ invoices, clients }) => {
                       <th className="w-12 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedInvoices.length === sortedInvoices.length}
+                          checked={selectedInvoices.length === sortedInvoices.length && sortedInvoices.length > 0}
                           onChange={selectAllInvoices}
                           className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                         />
@@ -685,69 +717,74 @@ const ReportsPage = ({ invoices, clients }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedInvoices.map(invoice => (
-                      <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedInvoices.includes(invoice.id)}
-                            onChange={() => handleInvoiceSelect(invoice.id)}
-                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                          />
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-semibold text-orange-700">
-                              {getClientName(invoice.clientId)?.charAt(0)?.toUpperCase() || 'C'}
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">
-                                {getClientName(invoice.clientId)}
+                    {sortedInvoices.map(invoice => {
+                      // Corrigir status para exibição
+                      const actualStatus = invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0 ? 'overdue' : invoice.status;
+                      
+                      return (
+                        <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedInvoices.includes(invoice.id)}
+                              onChange={() => handleInvoiceSelect(invoice.id)}
+                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                            />
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-semibold text-orange-700">
+                                {getClientName(invoice.clientId)?.charAt(0)?.toUpperCase() || 'C'}
                               </div>
-                              <div className="text-sm text-gray-500">
-                                #{invoice.id?.slice(0, 8)}
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {getClientName(invoice.clientId)}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  #{invoice.id?.slice(0, 8)}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="max-w-xs">
-                            <div className="font-medium text-gray-900 truncate">
-                              {invoice.description || 'Sem descrição'}
-                            </div>
-                            {invoice.subscriptionId && (
-                              <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full inline-block mt-1">
-                                Recorrente
+                          </td>
+                          <td>
+                            <div className="max-w-xs">
+                              <div className="font-medium text-gray-900 truncate">
+                                {invoice.description || 'Sem descrição'}
                               </div>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-semibold text-gray-900">
-                            {formatCurrency(invoice.amount)}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-medium text-gray-900">
-                            {formatDate(invoice.dueDate)}
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            invoice.status === 'paid' 
-                              ? 'bg-green-100 text-green-800'
-                              : invoice.status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {INVOICE_STATUS_LABELS[invoice.status] || invoice.status}
-                          </span>
-                        </td>
-                        <td className="text-gray-500">
-                          {invoice.paidDate ? formatDate(invoice.paidDate) : '-'}
-                        </td>
-                      </tr>
-                    ))}
+                              {invoice.subscriptionId && (
+                                <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full inline-block mt-1">
+                                  Recorrente
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="font-semibold text-gray-900">
+                              {formatCurrency(invoice.amount)}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="font-medium text-gray-900">
+                              {formatDate(invoice.dueDate)}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              actualStatus === 'paid' 
+                                ? 'bg-green-100 text-green-800'
+                                : actualStatus === 'pending'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {INVOICE_STATUS_LABELS[actualStatus] || actualStatus}
+                            </span>
+                          </td>
+                          <td className="text-gray-500">
+                            {invoice.paidDate ? formatDate(invoice.paidDate) : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -769,81 +806,79 @@ const ReportsPage = ({ invoices, clients }) => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedInvoices.map(invoice => (
-                  <div key={invoice.id} className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center font-semibold text-orange-700">
-                          {getClientName(invoice.clientId)?.charAt(0)?.toUpperCase() || 'C'}
+                {sortedInvoices.map(invoice => {
+                  const actualStatus = invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0 ? 'overdue' : invoice.status;
+                  
+                  return (
+                    <div key={invoice.id} className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center font-semibold text-orange-700">
+                            {getClientName(invoice.clientId)?.charAt(0)?.toUpperCase() || 'C'}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{getClientName(invoice.clientId)}</h4>
+                            <p className="text-xs text-gray-500">#{invoice.id?.slice(0, 8)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{getClientName(invoice.clientId)}</h4>
-                          <p className="text-xs text-gray-500">#{invoice.id?.slice(0, 8)}</p>
-                        </div>
-                      </div>
-                      
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        invoice.status === 'paid' 
-                          ? 'bg-green-100 text-green-800'
-                          : invoice.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {INVOICE_STATUS_LABELS[invoice.status] || invoice.status}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-3 mb-4">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Valor:</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(invoice.amount)}</span>
-                      </div>
-                      
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Vencimento:</span>
-                        <span className="font-medium text-gray-900">{formatDate(invoice.dueDate)}</span>
-                      </div>
-                      
-                      {invoice.paidDate && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Pagamento:</span>
-                          <span className="text-green-600 font-medium">{formatDate(invoice.paidDate)}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {invoice.description && (
-                      <div className="mb-4">
-                        <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                          {invoice.description}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                      {invoice.subscriptionId && (
-                        <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                          🔄 Recorrente
-                        </div>
-                      )}
-                      
-                      <div className="flex gap-2">
-                        <button className="text-orange-600 hover:text-orange-700 p-2 hover:bg-orange-50 rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                          </svg>
-                        </button>
                         
-                        <button className="text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          actualStatus === 'paid' 
+                            ? 'bg-green-100 text-green-800'
+                            : actualStatus === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {INVOICE_STATUS_LABELS[actualStatus] || actualStatus}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3 mb-4">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Valor:</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(invoice.amount)}</span>
+                        </div>
+                        
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Vencimento:</span>
+                          <span className="font-medium text-gray-900">{formatDate(invoice.dueDate)}</span>
+                        </div>
+                        
+                        {invoice.paidDate && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Pagamento:</span>
+                            <span className="text-green-600 font-medium">{formatDate(invoice.paidDate)}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {invoice.description && (
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                            {invoice.description}
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                        {invoice.subscriptionId && (
+                          <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                            🔄 Recorrente
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedInvoices.includes(invoice.id)}
+                            onChange={() => handleInvoiceSelect(invoice.id)}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -860,22 +895,45 @@ const ReportsPage = ({ invoices, clients }) => {
               </h3>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Gráfico de Pizza Simplificado */}
+                {/* Gráfico de Pizza Visual */}
                 <div className="flex items-center justify-center">
                   <div className="relative w-48 h-48">
-                    {/* Representação visual simples */}
-                    <div className="absolute inset-0 rounded-full border-8 border-gray-200"></div>
-                    <div className="absolute inset-0 rounded-full border-8 border-green-500" 
-                         style={{
-                           background: `conic-gradient(
-                             #22c55e 0deg ${(metrics.paid / metrics.total) * 360}deg,
-                             #f59e0b ${(metrics.paid / metrics.total) * 360}deg ${((metrics.paid + metrics.pending) / metrics.total) * 360}deg,
-                             #ef4444 ${((metrics.paid + metrics.pending) / metrics.total) * 360}deg 360deg
-                           )`,
-                           borderRadius: '50%'
-                         }}>
-                    </div>
-                    <div className="absolute inset-8 bg-white rounded-full flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      {/* Círculo de fundo */}
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" strokeWidth="8" />
+                      
+                      {/* Segmento de pagas (verde) */}
+                      {metrics.paid > 0 && (
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="#22c55e" strokeWidth="8"
+                          strokeDasharray={`${(metrics.paid / metrics.total) * 251.2} 251.2`}
+                          strokeDashoffset="0"
+                        />
+                      )}
+                      
+                      {/* Segmento de pendentes (amarelo) */}
+                      {metrics.pending > 0 && (
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="#f59e0b" strokeWidth="8"
+                          strokeDasharray={`${(metrics.pending / metrics.total) * 251.2} 251.2`}
+                          strokeDashoffset={`-${(metrics.paid / metrics.total) * 251.2}`}
+                        />
+                      )}
+                      
+                      {/* Segmento de vencidas (vermelho) */}
+                      {metrics.overdue > 0 && (
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="#ef4444" strokeWidth="8"
+                          strokeDasharray={`${(metrics.overdue / metrics.total) * 251.2} 251.2`}
+                          strokeDashoffset={`-${((metrics.paid + metrics.pending) / metrics.total) * 251.2}`}
+                        />
+                      )}
+                    </svg>
+                    
+                    <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-900">{metrics.total}</div>
                         <div className="text-xs text-gray-500">Total</div>
@@ -902,22 +960,6 @@ const ReportsPage = ({ invoices, clients }) => {
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Gráfico de Evolução Temporal */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                <span>📊</span>
-                Evolução no Período
-              </h3>
-              
-              <div className="h-64 bg-gray-50 rounded-xl flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <div className="text-4xl mb-2">📈</div>
-                  <p className="font-medium">Gráfico de Evolução</p>
-                  <p className="text-sm">Em breve: Visualização interativa com Chart.js</p>
                 </div>
               </div>
             </div>
@@ -974,16 +1016,6 @@ const ReportsPage = ({ invoices, clients }) => {
             </div>
             
             <div className="flex gap-3">
-              <button 
-                onClick={() => window.print()} 
-                className="btn-secondary px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-              >
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-                </svg>
-                Imprimir
-              </button>
-              
               <button onClick={exportToCSV} className="btn-success px-4 py-2 rounded-lg">
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -994,23 +1026,6 @@ const ReportsPage = ({ invoices, clients }) => {
           </div>
         </div>
       </div>
-
-      {/* Estilos CSS específicos */}
-      <style jsx>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .dashboard-container * {
-            visibility: visible;
-          }
-          .dashboard-container {
-            position: absolute;
-            left: 0;
-            top: 0;
-          }
-        }
-      `}</style>
     </div>
   );
 };

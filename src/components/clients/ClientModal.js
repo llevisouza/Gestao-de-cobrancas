@@ -4,7 +4,7 @@ import { formatCPF, formatPhone, removeFormatting, isValidEmail, isValidCPF } fr
 
 const ClientModal = ({ isOpen, onClose, onSave, client }) => {
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', cpf: '', pix: ''
+    name: '', email: '', phone: '', cpf: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -15,11 +15,10 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
         name: client.name || '',
         email: client.email || '',
         phone: client.phone ? formatPhone(client.phone) : '',
-        cpf: client.cpf ? formatCPF(client.cpf) : '',
-        pix: client.pix || ''
+        cpf: client.cpf ? formatCPF(client.cpf) : ''
       });
     } else {
-      setFormData({ name: '', email: '', phone: '', cpf: '', pix: '' });
+      setFormData({ name: '', email: '', phone: '', cpf: '' });
     }
     setErrors({});
   }, [client, isOpen]);
@@ -85,8 +84,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
         name: formData.name.trim(),
         email: formData.email.trim(),
         phone: removeFormatting(formData.phone),
-        cpf: removeFormatting(formData.cpf),
-        pix: formData.pix.trim()
+        cpf: removeFormatting(formData.cpf)
       };
       
       await onSave(dataToSave);
@@ -106,7 +104,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
       title={client ? 'Editar Cliente' : 'Novo Cliente'}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Erro geral com novo estilo */}
+        {/* Erro geral */}
         {errors.general && (
           <div className="alert alert-error">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -116,7 +114,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
           </div>
         )}
 
-        {/* Nome com novo estilo */}
+        {/* Nome */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nome Completo *
@@ -140,7 +138,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
           )}
         </div>
 
-        {/* Email com ícone */}
+        {/* Email */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Email *
@@ -218,33 +216,7 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
           )}
         </div>
 
-        {/* PIX */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Chave PIX
-          </label>
-          <div className="input-group">
-            <div className="input-group-text">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <input 
-              type="text" 
-              name="pix" 
-              value={formData.pix} 
-              onChange={handleChange}
-              className="form-input input-group-input"
-              placeholder="Email, telefone, CPF ou chave aleatória"
-              disabled={loading}
-            />
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Pode ser email, telefone, CPF ou chave aleatória
-          </p>
-        </div>
-
-        {/* Botões atualizados */}
+        {/* Botões */}
         <div className="flex justify-end space-x-3 pt-6">
           <button 
             type="button" 

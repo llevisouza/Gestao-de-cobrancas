@@ -1,8 +1,9 @@
-// src/components/dashboard/Dashboard.js - VERSÃO MELHORADA DO SEU PROJETO
+// src/components/dashboard/Dashboard.js - INTEGRADO COM WHATSAPP
 import React, { useState, useEffect } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import KPICards from './KPICards';
 import InvoiceTable from './InvoiceTable';
+import WhatsAppQuickActions from './WhatsAppQuickActions'; // NOVO IMPORT
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const Dashboard = () => {
@@ -15,7 +16,7 @@ const Dashboard = () => {
     generateInvoices 
   } = useFirestore();
 
-  // NOVO: Estado para animações e tempo real
+  // Estados para animações e tempo real
   const [currentTime, setCurrentTime] = useState(new Date());
   const [realtimeStats, setRealtimeStats] = useState({
     todayInvoices: 0,
@@ -23,7 +24,7 @@ const Dashboard = () => {
     overdueCount: 0
   });
 
-  // NOVO: Atualizar relógio em tempo real
+  // Atualizar relógio em tempo real
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -31,7 +32,7 @@ const Dashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // NOVO: Calcular estatísticas em tempo real
+  // Calcular estatísticas em tempo real
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     
@@ -48,7 +49,7 @@ const Dashboard = () => {
     setRealtimeStats({ todayInvoices, pendingAmount, overdueCount });
   }, [invoices]);
 
-  // NOVO: Obter estatísticas de recorrência
+  // Obter estatísticas de recorrência
   const getRecurrenceStats = () => {
     const stats = {
       daily: { count: 0, revenue: 0 },
@@ -71,7 +72,6 @@ const Dashboard = () => {
   const handleCreateExampleData = async () => {
     try {
       await createExampleData();
-      // NOVO: Notificação visual melhorada
       showNotification('success', '🎉 Dados criados!', 'Exemplos com diferentes recorrências foram adicionados');
     } catch (error) {
       console.error('Erro ao criar dados de exemplo:', error);
@@ -93,7 +93,7 @@ const Dashboard = () => {
     }
   };
 
-  // NOVO: Sistema de notificações visuais (simples)
+  // Sistema de notificações visuais (simples)
   const showNotification = (type, title, message) => {
     // Por enquanto usando alert, depois podemos implementar toast
     alert(`${title}\n${message}`);
@@ -112,7 +112,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="dashboard-container">
-        {/* NOVO: Header melhorado com relógio */}
+        {/* Header melhorado com relógio */}
         <div className="dashboard-header">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1">
@@ -124,7 +124,7 @@ const Dashboard = () => {
                   </p>
                 </div>
                 
-                {/* NOVO: Relógio em tempo real */}
+                {/* Relógio em tempo real */}
                 <div className="hidden lg:block bg-white rounded-lg p-4 shadow-sm border">
                   <div className="text-right">
                     <div className="text-2xl font-mono font-bold text-primary-600">
@@ -163,7 +163,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* NOVO: Cards de estatísticas em tempo real */}
+        {/* Cards de estatísticas em tempo real */}
         {(clients.length > 0 || subscriptions.length > 0) && (
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -210,7 +210,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* NOVO: Cards de recorrência melhorados */}
+        {/* Cards de recorrência melhorados */}
         {subscriptions.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -287,13 +287,24 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* NOVO: Widget WhatsApp - Aparece se tem dados */}
+        {(clients.length > 0 && invoices.length > 0) && (
+          <div className="mb-8">
+            <WhatsAppQuickActions 
+              invoices={invoices}
+              clients={clients}
+              subscriptions={subscriptions}
+            />
+          </div>
+        )}
+
         {/* KPI Cards existentes (mantidos) */}
         <KPICards invoices={invoices} clients={clients} />
         
         {/* Tabela de faturas existente (mantida) */}
         <InvoiceTable invoices={invoices} clients={clients} />
 
-        {/* NOVO: Informações sobre o sistema funcionando */}
+        {/* Informações sobre o sistema funcionando */}
         {subscriptions.length > 0 && (
           <div className="mt-8">
             <div className="card">
@@ -302,41 +313,62 @@ const Dashboard = () => {
               </div>
               <div className="card-body">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Como Funciona:</h4>
-                    <ul className="space-y-2 text-sm text-gray-600">
-                      <li className="flex items-start">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mr-3 mt-2"></span>
-                        <span>Sistema verifica automaticamente quando gerar cada tipo de fatura</span>
-                      </li>
-                      <li className="flex items-start">
-                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-3 mt-2"></span>
-                        <span>Previne duplicação - só gera quando necessário</span>
-                      </li>
-                      <li className="flex items-start">
-                        <span className="w-2 h-2 bg-orange-500 rounded-full mr-3 mt-2"></span>
-                        <span>Respeita datas de início e configurações de cada assinatura</span>
-                      </li>
-                      <li className="flex items-start">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full mr-3 mt-2"></span>
-                        <span>Calcula próximas datas automaticamente</span>
-                      </li>
-                    </ul>
+                  <div className="space-y-4">
+                    <h4 className="text-md font-semibold text-gray-800 flex items-center">
+                      <span className="mr-2">⚙️</span>
+                      Funcionalidades Ativas
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        Geração automática de faturas recorrentes
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        Cálculo inteligente de próximas cobranças
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        Integração com WhatsApp para notificações
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        Controle de status e vencimentos
+                      </div>
+                    </div>
                   </div>
                   
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Status Atual:</h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                        <span className="text-sm font-medium text-green-800">Sistema Ativo</span>
-                        <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                  <div className="space-y-4">
+                    <h4 className="text-md font-semibold text-gray-800 flex items-center">
+                      <span className="mr-2">📈</span>
+                      Próximas Ações
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="text-sm text-gray-600">
+                        • Clique em "Gerar Faturas" para processar recorrências
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                        <span className="text-sm text-blue-800">Última atualização:</span>
-                        <span className="text-sm font-medium text-blue-600">
-                          {currentTime.toLocaleTimeString('pt-BR')}
-                        </span>
+                      <div className="text-sm text-gray-600">
+                        • Use o WhatsApp Widget para enviar cobranças
                       </div>
+                      <div className="text-sm text-gray-600">
+                        • Acompanhe o status das faturas na tabela abaixo
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        • Monitore KPIs em tempo real no dashboard
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Status do sistema */}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center text-green-600">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                      Sistema operacional
+                    </div>
+                    <div className="text-gray-500">
+                      Última atualização: {currentTime.toLocaleString('pt-BR')}
                     </div>
                   </div>
                 </div>
@@ -345,33 +377,30 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Mensagem para primeiros passos (mantida) */}
-        {clients.length === 0 && (
-          <div className="card text-center py-12">
-            <div className="max-w-md mx-auto">
-              <svg className="mx-auto h-16 w-16 text-orange-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        {/* Estado vazio - quando não há dados */}
+        {clients.length === 0 && subscriptions.length === 0 && invoices.length === 0 && (
+          <div className="text-center py-12">
+            <div className="mb-8">
+              <div className="text-6xl mb-4">📊</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Sistema de Cobranças com Recorrências
+                Bem-vindo ao Sistema de Cobranças
               </h3>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                Gerencie cobranças com flexibilidade total! Crie assinaturas diárias, semanais, 
-                mensais ou com intervalos personalizados. O sistema gera faturas automaticamente 
-                no momento certo.
+              <p className="text-gray-600 max-w-md mx-auto">
+                Para começar, clique no botão "Dados Exemplo" para criar 
+                clientes, assinaturas e faturas de exemplo com diferentes 
+                tipos de recorrência.
               </p>
-              <div className="space-y-3">
-                <button 
-                  onClick={handleCreateExampleData}
-                  className="btn-success block w-full"
-                >
-                  🚀 Começar com Dados de Exemplo
-                </button>
-                <p className="text-sm text-gray-500">
-                  Inclui exemplos de todos os tipos de recorrência
-                </p>
-              </div>
             </div>
+            
+            <button 
+              onClick={handleCreateExampleData}
+              className="btn-primary btn-large"
+            >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Começar com Dados de Exemplo
+            </button>
           </div>
         )}
       </div>

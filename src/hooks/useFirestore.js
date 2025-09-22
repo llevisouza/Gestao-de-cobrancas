@@ -20,33 +20,38 @@ export const useFirestore = () => {
     let unsubscribeInvoices = null;
 
     if (user) {
-      console.log('👤 Usuário logado, carregando dados...', user.email);
+      console.log('👤 Usuário logado, configurando listeners...', user.email);
       setLoading(true);
+      setError(null);
 
       try {
         // Configurar listeners em tempo real
         unsubscribeClients = clientService.subscribe((clientsData) => {
           console.log('📊 Clientes recebidos:', clientsData.length);
-          setClients(clientsData);
+          setClients(clientsData || []);
         });
 
         unsubscribeSubscriptions = subscriptionService.subscribe((subscriptionsData) => {
           console.log('📊 Assinaturas recebidas:', subscriptionsData.length);
-          setSubscriptions(subscriptionsData);
+          setSubscriptions(subscriptionsData || []);
         });
 
         unsubscribeInvoices = invoiceService.subscribe((invoicesData) => {
           console.log('📊 Faturas recebidas:', invoicesData.length);
-          setInvoices(invoicesData);
+          setInvoices(invoicesData || []);
         });
 
-        setError(null);
+        // Definir loading como false após um tempo
+        const loadingTimeout = setTimeout(() => {
+          setLoading(false);
+        }, 3000);
+
+        return () => clearTimeout(loadingTimeout);
+
       } catch (err) {
         console.error('❌ Erro ao configurar listeners:', err);
         setError(err.message);
-      } finally {
-        // Dar tempo para os dados carregarem
-        setTimeout(() => setLoading(false), 2000);
+        setLoading(false);
       }
     } else {
       console.log('🚪 Usuário não logado, limpando dados...');
@@ -60,9 +65,27 @@ export const useFirestore = () => {
     // Cleanup function
     return () => {
       console.log('🧹 Limpando listeners...');
-      if (unsubscribeClients) unsubscribeClients();
-      if (unsubscribeSubscriptions) unsubscribeSubscriptions();
-      if (unsubscribeInvoices) unsubscribeInvoices();
+      if (unsubscribeClients) {
+        try {
+          unsubscribeClients();
+        } catch (error) {
+          console.warn('Erro ao limpar listener de clientes:', error);
+        }
+      }
+      if (unsubscribeSubscriptions) {
+        try {
+          unsubscribeSubscriptions();
+        } catch (error) {
+          console.warn('Erro ao limpar listener de assinaturas:', error);
+        }
+      }
+      if (unsubscribeInvoices) {
+        try {
+          unsubscribeInvoices();
+        } catch (error) {
+          console.warn('Erro ao limpar listener de faturas:', error);
+        }
+      }
     };
   }, [user]);
 
@@ -72,23 +95,17 @@ export const useFirestore = () => {
       throw new Error('Usuário não autenticado');
     }
 
+    if (!clientData?.name || !clientData?.email) {
+      throw new Error('Nome e email são obrigatórios');
+    }
+
     try {
       console.log('🔄 Criando cliente:', clientData);
       
-      // Adicionar timestamp e ID de usuário
-      const clientWithMetadata = {
-        ...clientData,
-        userId: user.uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'active'
-      };
-
-      const result = await clientService.create(clientWithMetadata);
+      const result = await clientService.create(clientData);
       
       if (result.success) {
         console.log('✅ Cliente criado com sucesso:', result.id);
-        // Os dados serão atualizados automaticamente pelo listener
         return result.id;
       } else {
         console.error('❌ Erro ao criar cliente:', result.error);
@@ -106,19 +123,17 @@ export const useFirestore = () => {
       throw new Error('Parâmetros inválidos para atualizar cliente');
     }
 
+    if (!clientData?.name || !clientData?.email) {
+      throw new Error('Nome e email são obrigatórios');
+    }
+
     try {
       console.log('🔄 Atualizando cliente:', clientId, clientData);
       
-      const updateData = {
-        ...clientData,
-        updatedAt: new Date().toISOString()
-      };
-
-      const result = await clientService.update(clientId, updateData);
+      const result = await clientService.update(clientId, clientData);
       
       if (result.success) {
         console.log('✅ Cliente atualizado com sucesso:', clientId);
-        // Os dados serão atualizados automaticamente pelo listener
         return true;
       } else {
         console.error('❌ Erro ao atualizar cliente:', result.error);
@@ -143,7 +158,6 @@ export const useFirestore = () => {
       
       if (result.success) {
         console.log('✅ Cliente deletado com sucesso:', clientId);
-        // Os dados serão atualizados automaticamente pelo listener
         return true;
       } else {
         console.error('❌ Erro ao deletar cliente:', result.error);
@@ -162,18 +176,14 @@ export const useFirestore = () => {
       throw new Error('Usuário não autenticado');
     }
 
+    if (!subscriptionData?.name || !subscriptionData?.amount || !subscriptionData?.clientId) {
+      throw new Error('Nome, valor e cliente são obrigatórios');
+    }
+
     try {
       console.log('🔄 Criando assinatura:', subscriptionData);
       
-      const subscriptionWithMetadata = {
-        ...subscriptionData,
-        userId: user.uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: subscriptionData.status || 'active'
-      };
-
-      const result = await subscriptionService.create(subscriptionWithMetadata);
+      const result = await subscriptionService.create(subscriptionData);
       
       if (result.success) {
         console.log('✅ Assinatura criada com sucesso:', result.id);
@@ -194,15 +204,14 @@ export const useFirestore = () => {
       throw new Error('Parâmetros inválidos para atualizar assinatura');
     }
 
+    if (!subscriptionData?.name || !subscriptionData?.amount) {
+      throw new Error('Nome e valor são obrigatórios');
+    }
+
     try {
       console.log('🔄 Atualizando assinatura:', subscriptionId, subscriptionData);
       
-      const updateData = {
-        ...subscriptionData,
-        updatedAt: new Date().toISOString()
-      };
-
-      const result = await subscriptionService.update(subscriptionId, updateData);
+      const result = await subscriptionService.update(subscriptionId, subscriptionData);
       
       if (result.success) {
         console.log('✅ Assinatura atualizada com sucesso:', subscriptionId);
@@ -251,17 +260,7 @@ export const useFirestore = () => {
     try {
       console.log('🔄 Atualizando fatura:', invoiceId, invoiceData);
       
-      const updateData = {
-        ...invoiceData,
-        updatedAt: new Date().toISOString()
-      };
-
-      // Se está marcando como pago, adicionar data de pagamento
-      if (invoiceData.status === 'paid' && !invoiceData.paidDate) {
-        updateData.paidDate = new Date().toISOString().split('T')[0];
-      }
-
-      const result = await invoiceService.update(invoiceId, updateData);
+      const result = await invoiceService.update(invoiceId, invoiceData);
       
       if (result.success) {
         console.log('✅ Fatura atualizada com sucesso:', invoiceId);
@@ -340,9 +339,13 @@ export const useFirestore = () => {
       // Criar clientes primeiro
       const createdClients = [];
       for (const clientData of exampleClients) {
-        const clientId = await createClient(clientData);
-        createdClients.push({ ...clientData, id: clientId });
-        console.log('✅ Cliente exemplo criado:', clientData.name);
+        try {
+          const clientId = await createClient(clientData);
+          createdClients.push({ ...clientData, id: clientId });
+          console.log('✅ Cliente exemplo criado:', clientData.name);
+        } catch (error) {
+          console.error('❌ Erro ao criar cliente exemplo:', clientData.name, error);
+        }
       }
 
       // Aguardar um pouco para sincronização
@@ -353,40 +356,53 @@ export const useFirestore = () => {
       
       const exampleSubscriptions = [
         {
-          clientId: createdClients[0].id,
-          clientName: createdClients[0].name,
+          clientId: createdClients[0]?.id,
+          clientName: createdClients[0]?.name,
           name: 'Delivery Diário',
           amount: 25.00,
           recurrenceType: 'daily',
-          startDate: today
+          startDate: today,
+          status: 'active'
         },
         {
-          clientId: createdClients[1].id,
-          clientName: createdClients[1].name,
+          clientId: createdClients[1]?.id,
+          clientName: createdClients[1]?.name,
           name: 'Plano Semanal',
           amount: 150.00,
           recurrenceType: 'weekly',
           dayOfWeek: 'friday',
-          startDate: today
+          startDate: today,
+          status: 'active'
         },
         {
-          clientId: createdClients[2].id,
-          clientName: createdClients[2].name,
+          clientId: createdClients[2]?.id,
+          clientName: createdClients[2]?.name,
           name: 'Mensalidade',
           amount: 300.00,
           recurrenceType: 'monthly',
           dayOfMonth: 15,
-          startDate: today
+          startDate: today,
+          status: 'active'
         }
       ];
 
       for (const subData of exampleSubscriptions) {
-        await createSubscription(subData);
-        console.log('✅ Assinatura exemplo criada:', subData.name);
+        if (subData.clientId) {
+          try {
+            await createSubscription(subData);
+            console.log('✅ Assinatura exemplo criada:', subData.name);
+          } catch (error) {
+            console.error('❌ Erro ao criar assinatura exemplo:', subData.name, error);
+          }
+        }
       }
 
       // Gerar algumas faturas
-      await generateInvoices();
+      try {
+        await generateInvoices();
+      } catch (error) {
+        console.warn('⚠️ Erro ao gerar faturas exemplo:', error);
+      }
 
       setLoading(false);
       console.log('🎉 Dados de exemplo criados com sucesso!');
@@ -411,11 +427,26 @@ export const useFirestore = () => {
       setLoading(true);
 
       // Deletar todos os clientes (cascata deletará assinaturas e faturas)
-      const deletePromises = clients.map(client => deleteClient(client.id));
-      await Promise.all(deletePromises);
+      const deletePromises = clients.map(async (client) => {
+        try {
+          await deleteClient(client.id);
+          return { success: true, clientId: client.id };
+        } catch (error) {
+          console.error('❌ Erro ao deletar cliente:', client.name, error);
+          return { success: false, clientId: client.id, error: error.message };
+        }
+      });
 
-      console.log('✅ Todos os dados foram limpos!');
-      return { success: true, message: 'Dados limpos com sucesso!' };
+      const results = await Promise.allSettled(deletePromises);
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length;
+
+      console.log(`✅ Limpeza concluída: ${successful} sucessos, ${failed} falhas`);
+      
+      return { 
+        success: true, 
+        message: `Dados limpos com sucesso! (${successful} clientes removidos)` 
+      };
     } catch (error) {
       console.error('❌ Erro ao limpar dados:', error);
       setError(error.message);
@@ -425,17 +456,36 @@ export const useFirestore = () => {
     }
   }, [user, clients, deleteClient]);
 
-  // Debug info
-  const debugInfo = {
-    user: user ? { email: user.email, uid: user.uid } : null,
-    clientsCount: clients.length,
-    subscriptionsCount: subscriptions.length,
-    invoicesCount: invoices.length,
-    loading,
-    error
-  };
+  // Função utilitária para forçar atualização dos dados
+  const refreshData = useCallback(async () => {
+    if (!user) return;
 
-  console.log('🐛 Debug useFirestore:', debugInfo);
+    try {
+      console.log('🔄 Forçando atualização dos dados...');
+      setLoading(true);
+      
+      // Carregar dados diretamente dos serviços
+      const [clientsData, subscriptionsData] = await Promise.allSettled([
+        clientService.getAll(),
+        subscriptionService.getAll ? subscriptionService.getAll() : Promise.resolve([])
+      ]);
+
+      if (clientsData.status === 'fulfilled') {
+        setClients(clientsData.value || []);
+      }
+      
+      if (subscriptionsData.status === 'fulfilled') {
+        setSubscriptions(subscriptionsData.value || []);
+      }
+
+      setError(null);
+    } catch (error) {
+      console.error('❌ Erro ao atualizar dados:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   return {
     // Estados
@@ -462,8 +512,7 @@ export const useFirestore = () => {
     // Utilitários
     createExampleData,
     clearAllData,
+    refreshData,
     
-    // Debug
-    debugInfo
   };
 };

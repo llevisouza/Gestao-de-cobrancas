@@ -1,7 +1,6 @@
-// src/App.js - VERSÃO LIMPA E CORRIGIDA
+// src/App.js - VERSÃO CORRIGIDA PARA USAR CLIENTSPAGE DIRETO
 import React, { useState, useEffect } from 'react';
 import { useFirebaseAuth } from './hooks/useFirebaseAuth';
-import { useFirestore } from './hooks/useFirestore';
 import { ROUTES } from './utils/constants';
 
 // Componentes
@@ -10,7 +9,7 @@ import LoadingSpinner from './components/common/LoadingSpinner';
 import LoginPage from './components/auth/LoginPage';
 import FirebaseSetup from './components/auth/FirebaseSetup';
 import Dashboard from './components/dashboard/Dashboard';
-import ClientsPage from './components/clients/ClientsPage';
+import ClientsPage from './components/clients/ClientsPage'; // Importação corrigida
 import ReportsPage from './components/reports/ReportsPage';
 
 // Estilos
@@ -20,16 +19,7 @@ import './styles/components.css';
 function App() {
   // Hooks
   const { user, loading: authLoading, signIn, signInDemo, logout } = useFirebaseAuth();
-  const { 
-    clients, 
-    subscriptions, 
-    invoices, 
-    loading: dataLoading, 
-    error: dataError,
-    createExampleData,
-    clearAllData 
-  } = useFirestore();
-
+  
   // Estados locais
   const [currentView, setCurrentView] = useState(ROUTES.DASHBOARD);
   const [appError, setAppError] = useState(null);
@@ -42,16 +32,6 @@ function App() {
     ];
     return requiredVars.every(envVar => process.env[envVar]);
   };
-
-  // Mostrar erros do Firestore
-  useEffect(() => {
-    if (dataError) {
-      console.error('🔥 Erro do Firestore:', dataError);
-      setAppError(dataError);
-    } else {
-      setAppError(null);
-    }
-  }, [dataError]);
 
   // Handler para login melhorado
   const handleLogin = async (email, password) => {
@@ -71,102 +51,10 @@ function App() {
     }
   };
 
-  // Handler para criar dados de exemplo
-  const handleCreateSampleData = async () => {
-    if (!user) {
-      setAppError('Você precisa estar logado para criar dados de exemplo');
-      return;
-    }
-
-    try {
-      setAppError(null);
-      console.log('🔄 Iniciando criação de dados de exemplo...');
-      
-      const result = await createExampleData();
-      
-      if (result && result.success) {
-        alert('🎉 Dados de exemplo criados com sucesso!\n\n' +
-              '✅ 5 clientes foram criados\n' +
-              '✅ Assinaturas com diferentes recorrências\n' +
-              '✅ Faturas de exemplo geradas\n\n' +
-              'Explore todas as funcionalidades do sistema!');
-      }
-      
-    } catch (error) {
-      console.error('❌ Erro ao criar dados:', error);
-      setAppError(error.message);
-      
-      if (error.message.includes('Já existem')) {
-        const confirmClear = window.confirm(
-          'Já existem dados no sistema.\n\n' +
-          'Deseja limpar todos os dados existentes e criar novos dados de exemplo?\n\n' +
-          '⚠️ ATENÇÃO: Esta ação não pode ser desfeita!'
-        );
-        
-        if (confirmClear) {
-          await handleClearAllData();
-          // Tentar criar novamente após limpar
-          setTimeout(() => handleCreateSampleData(), 3000);
-        }
-      } else {
-        alert(`❌ Erro ao criar dados de exemplo:\n\n${error.message}`);
-      }
-    }
-  };
-
-  // Handler para limpar todos os dados
-  const handleClearAllData = async () => {
-    if (!user) {
-      setAppError('Você precisa estar logado');
-      return;
-    }
-
-    const confirmClear = window.confirm(
-      '⚠️ ATENÇÃO: AÇÃO PERIGOSA!\n\n' +
-      'Você está prestes a DELETAR TODOS OS DADOS:\n' +
-      '• Todos os clientes\n' +
-      '• Todas as assinaturas\n' +
-      '• Todas as faturas\n\n' +
-      'Esta ação NÃO PODE ser desfeita!\n\n' +
-      'Tem CERTEZA que deseja continuar?'
-    );
-
-    if (!confirmClear) return;
-
-    // Confirmar novamente
-    const doubleConfirm = window.confirm(
-      '🚨 ÚLTIMA CONFIRMAÇÃO!\n\n' +
-      'Você confirmou que quer DELETAR TUDO.\n\n' +
-      'Digite "CONFIRMAR" na próxima tela para prosseguir.'
-    );
-
-    if (!doubleConfirm) return;
-
-    const finalConfirm = prompt(
-      'Digite "CONFIRMAR" (em maiúsculas) para deletar todos os dados:'
-    );
-
-    if (finalConfirm !== 'CONFIRMAR') {
-      alert('Operação cancelada - texto não confere');
-      return;
-    }
-
-    try {
-      setAppError(null);
-      console.log('🗑️ Limpando todos os dados...');
-      
-      const result = await clearAllData();
-      
-      if (result && result.success) {
-        alert('✅ Todos os dados foram removidos com sucesso!\n\n' +
-              'O sistema agora está limpo e pronto para novos dados.');
-      }
-      
-    } catch (error) {
-      console.error('❌ Erro ao limpar dados:', error);
-      setAppError(error.message);
-      alert(`❌ Erro ao limpar dados:\n\n${error.message}`);
-    }
+  // Handler para criar dados de exemplo (será chamado do Dashboard)
+  const handleCreateSampleData = () => {
+    // Navegar para clientes onde a função está disponível
+    setCurrentView(ROUTES.CLIENTS);
   };
 
   // Loading inicial da autenticação
@@ -248,87 +136,52 @@ function App() {
         currentView={currentView}
         onViewChange={setCurrentView}
         onCreateSampleData={handleCreateSampleData}
-        onClearAllData={handleClearAllData}
-        dataLoading={dataLoading}
+        onClearAllData={() => {
+          // Navegar para clientes onde a função está disponível
+          setCurrentView(ROUTES.CLIENTS);
+        }}
       />
 
       {/* Conteúdo principal */}
       <main>
-        {dataLoading ? (
+        {/* Dashboard */}
+        {currentView === ROUTES.DASHBOARD && (
+          <Dashboard
+            onNavigate={setCurrentView}
+            onCreateSampleData={handleCreateSampleData}
+          />
+        )}
+        
+        {/* Gerenciar Clientes - Usando o componente corrigido */}
+        {currentView === ROUTES.CLIENTS && (
+          <ClientsPage />
+        )}
+        
+        {/* Relatórios */}
+        {currentView === ROUTES.REPORTS && (
+          <ReportsPage />
+        )}
+        
+        {/* Placeholder para WhatsApp */}
+        {currentView === ROUTES.WHATSAPP && (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-            <div className="text-center">
-              <LoadingSpinner size="large" />
-              <p className="mt-4 text-gray-600 animate-pulse">Carregando dados...</p>
-              <div className="mt-2 text-sm text-gray-500">
-                📊 Clientes: {clients.length} | 🔄 Assinaturas: {subscriptions.length} | 📄 Faturas: {invoices.length}
-              </div>
+            <div className="text-center max-w-md">
+              <div className="text-6xl mb-4">📱</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">WhatsApp Manager</h2>
+              <p className="text-gray-600 mb-6">
+                Funcionalidade em desenvolvimento. Em breve você poderá gerenciar suas 
+                cobranças via WhatsApp diretamente pelo sistema.
+              </p>
+              <button 
+                onClick={() => setCurrentView(ROUTES.DASHBOARD)}
+                className="btn-primary px-6 py-3 rounded-lg"
+              >
+                Voltar ao Dashboard
+              </button>
             </div>
           </div>
-        ) : (
-          <>
-            {/* Dashboard */}
-            {currentView === ROUTES.DASHBOARD && (
-              <Dashboard
-                invoices={invoices}
-                clients={clients}
-                subscriptions={subscriptions}
-                onNavigate={setCurrentView}
-                onCreateSampleData={handleCreateSampleData}
-              />
-            )}
-            
-            {/* Gerenciar Clientes */}
-            {currentView === ROUTES.CLIENTS && (
-              <ClientsPage
-                clients={clients}
-                subscriptions={subscriptions}
-              />
-            )}
-            
-            {/* Relatórios */}
-            {currentView === ROUTES.REPORTS && (
-              <ReportsPage
-                invoices={invoices}
-                clients={clients}
-              />
-            )}
-            
-            {/* Placeholder para WhatsApp - será implementado */}
-            {currentView === ROUTES.WHATSAPP && (
-              <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center max-w-md">
-                  <div className="text-6xl mb-4">📱</div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">WhatsApp Manager</h2>
-                  <p className="text-gray-600 mb-6">
-                    Funcionalidade em desenvolvimento. Em breve você poderá gerenciar suas 
-                    cobranças via WhatsApp diretamente pelo sistema.
-                  </p>
-                  <button 
-                    onClick={() => setCurrentView(ROUTES.DASHBOARD)}
-                    className="btn-primary px-6 py-3 rounded-lg"
-                  >
-                    Voltar ao Dashboard
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
         )}
       </main>
-
-      {/* Debug Info (apenas em desenvolvimento) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 left-4 bg-gray-800 text-white p-3 rounded-lg shadow-lg text-xs max-w-xs opacity-90">
-          <div className="font-bold mb-2">🐛 Debug Info</div>
-          <div>👤 Usuário: {user?.email}</div>
-          <div>👥 Clientes: {clients.length}</div>
-          <div>🔄 Assinaturas: {subscriptions.length}</div>
-          <div>📄 Faturas: {invoices.length}</div>
-          <div>⏳ Loading: {dataLoading ? 'Sim' : 'Não'}</div>
-          <div>❌ Erro: {appError ? 'Sim' : 'Não'}</div>
-          <div className="text-xs text-gray-300 mt-1">v2.0.0</div>
-        </div>
-      )}
     </div>
   );
 }

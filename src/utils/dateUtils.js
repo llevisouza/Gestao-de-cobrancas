@@ -67,14 +67,7 @@ export const getDaysDifference = (dateString1, dateString2 = null) => {
     // Converter para dias (24 * 60 * 60 * 1000 = 86400000)
     const diffDays = Math.round(diffTime / 86400000);
     
-    console.log('[DEBUG] Diferença calculada:', { 
-      dateString1, 
-      today, 
-      date1: date1.toDateString(), 
-      date2: date2.toDateString(), 
-      diffDays 
-    });
-    
+
     return diffDays;
   } catch (error) {
     console.error('Erro ao calcular diferença de dias:', error);

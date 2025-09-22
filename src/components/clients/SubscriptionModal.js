@@ -1,21 +1,20 @@
-// src/components/clients/SubscriptionModal.js - COM SISTEMA DE RECORRÊNCIA
+// src/components/clients/SubscriptionModal.js - VERSÃO TOTALMENTE CORRIGIDA
 import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import { SUBSCRIPTION_STATUS } from '../../utils/constants';
 
-const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) => {
+const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, loading }) => {
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
     recurrenceType: 'monthly', // daily, weekly, monthly, custom
-    recurrenceDays: 30, // Para custom
+    recurrenceDays: '30', // Para custom
     dayOfMonth: '', // Para monthly
     dayOfWeek: 'monday', // Para weekly
     startDate: '',
     status: 'active'
   });
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
 
   // Opções de recorrência
   const recurrenceOptions = [
@@ -36,34 +35,38 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
     { value: 'sunday', label: 'Domingo' }
   ];
 
+  // Reset do formulário quando modal abre/fecha
   useEffect(() => {
-    if (subscription) {
-      setFormData({
-        name: subscription.name || '',
-        amount: subscription.amount || '',
-        recurrenceType: subscription.recurrenceType || 'monthly',
-        recurrenceDays: subscription.recurrenceDays || 30,
-        dayOfMonth: subscription.dayOfMonth || '',
-        dayOfWeek: subscription.dayOfWeek || 'monday',
-        startDate: subscription.startDate || '',
-        status: subscription.status || 'active'
-      });
-    } else {
-      // Valores padrão para nova assinatura
-      const today = new Date();
-      const todayString = today.toISOString().split('T')[0];
-      setFormData({ 
-        name: '',
-        amount: '', 
-        recurrenceType: 'monthly',
-        recurrenceDays: 30,
-        dayOfMonth: today.getDate().toString(),
-        dayOfWeek: 'monday',
-        startDate: todayString, 
-        status: 'active' 
-      });
+    if (isOpen) {
+      if (subscription) {
+        // Editando assinatura existente
+        setFormData({
+          name: subscription.name || '',
+          amount: subscription.amount?.toString() || '',
+          recurrenceType: subscription.recurrenceType || 'monthly',
+          recurrenceDays: subscription.recurrenceDays?.toString() || '30',
+          dayOfMonth: subscription.dayOfMonth?.toString() || '',
+          dayOfWeek: subscription.dayOfWeek || 'monday',
+          startDate: subscription.startDate || '',
+          status: subscription.status || 'active'
+        });
+      } else {
+        // Nova assinatura
+        const today = new Date();
+        const todayString = today.toISOString().split('T')[0];
+        setFormData({ 
+          name: '',
+          amount: '', 
+          recurrenceType: 'monthly',
+          recurrenceDays: '30',
+          dayOfMonth: today.getDate().toString(),
+          dayOfWeek: 'monday',
+          startDate: todayString, 
+          status: 'active' 
+        });
+      }
+      setErrors({});
     }
-    setErrors({});
   }, [subscription, isOpen]);
 
   const handleChange = (e) => {
@@ -72,7 +75,9 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
 
     // Formatação para valor monetário
     if (name === 'amount') {
+      // Remove caracteres não numéricos exceto vírgula e ponto
       formattedValue = value.replace(/[^\d.,]/g, '');
+      // Substitui vírgula por ponto para processamento
       if (formattedValue.includes(',')) {
         formattedValue = formattedValue.replace(',', '.');
       }
@@ -158,30 +163,43 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
     e.preventDefault();
     
     if (!validate()) {
+      console.log('Validação falhou:', errors);
       return;
     }
 
-    setLoading(true);
-    
+    if (!client) {
+      setErrors({ general: 'Cliente não especificado' });
+      return;
+    }
+
     try {
+      // Preparar dados para salvar
       const dataToSave = {
-        ...formData,
         name: formData.name.trim(),
         amount: parseFloat(formData.amount),
-        recurrenceDays: parseInt(formData.recurrenceDays),
-        dayOfMonth: formData.recurrenceType === 'monthly' ? parseInt(formData.dayOfMonth) : null,
+        recurrenceType: formData.recurrenceType,
+        startDate: formData.startDate,
+        status: formData.status,
         clientId: client.id,
-        clientName: client.name,
+        clientName: client.name
       };
+
+      // Adicionar campos específicos baseado no tipo de recorrência
+      if (formData.recurrenceType === 'monthly') {
+        dataToSave.dayOfMonth = parseInt(formData.dayOfMonth);
+      } else if (formData.recurrenceType === 'weekly') {
+        dataToSave.dayOfWeek = formData.dayOfWeek;
+      } else if (formData.recurrenceType === 'custom') {
+        dataToSave.recurrenceDays = parseInt(formData.recurrenceDays);
+      }
+
+      console.log('Dados da assinatura para salvar:', dataToSave);
       
-      console.log('Salvando assinatura com recorrência:', dataToSave);
       await onSave(dataToSave);
-      onClose();
+      
     } catch (error) {
       console.error('Erro ao salvar assinatura:', error);
       setErrors({ general: 'Erro ao salvar assinatura. Tente novamente.' });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -212,11 +230,15 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
     );
   }
 
+  if (!client) {
+    return null;
+  }
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={subscription ? 'Editar Assinatura' : `Nova Assinatura para ${client?.name}`}
+      title={subscription ? 'Editar Assinatura' : `Nova Assinatura para ${client.name}`}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Erro geral */}
@@ -233,23 +255,21 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
         )}
 
         {/* Informação do cliente */}
-        {client && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <div className="flex">
-              <svg className="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-blue-800">
-                  Cliente: {client.name}
-                </p>
-                <p className="text-sm text-blue-700">
-                  {client.email}
-                </p>
-              </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div className="flex">
+            <svg className="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-blue-800">
+                Cliente: {client.name}
+              </p>
+              <p className="text-sm text-blue-700">
+                {client.email}
+              </p>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Nome da Assinatura */}
         <div>
@@ -326,12 +346,13 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
                   checked={formData.recurrenceType === option.value}
                   onChange={handleChange}
                   className="sr-only"
+                  disabled={loading}
                 />
                 <div className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
                   formData.recurrenceType === option.value
                     ? 'border-orange-500 bg-orange-50'
                     : 'border-gray-200 hover:border-gray-300'
-                }`}>
+                } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <div className="flex items-center">
                     <div className={`w-4 h-4 rounded-full border-2 mr-3 ${
                       formData.recurrenceType === option.value
@@ -504,7 +525,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client }) =>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-orange-700 font-medium">Cliente:</p>
-                <p className="text-gray-900">{client?.name}</p>
+                <p className="text-gray-900">{client.name}</p>
               </div>
               <div>
                 <p className="text-orange-700 font-medium">Plano:</p>

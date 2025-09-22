@@ -1,25 +1,42 @@
-// src/components/clients/ClientsPage.js - VERSÃO CORRIGIDA
-import React, { useState, useMemo } from 'react'; // <-- CORREÇÃO AQUI
+// src/components/clients/ClientsPage.js - VERSÃO TOTALMENTE CORRIGIDA
+import React, { useState, useMemo } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import ClientModal from './ClientModal';
 import SubscriptionModal from './SubscriptionModal';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { formatCurrency, formatDate, formatPhone, formatCPF } from '../../utils/formatters';
 
-const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) => {
+const ClientsPage = () => {
+  const {
+    clients,
+    subscriptions,
+    loading,
+    error,
+    createClient,
+    updateClient,
+    deleteClient,
+    createSubscription,
+    updateSubscription,
+    deleteSubscription
+  } = useFirestore();
+
   // Estados do componente
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [viewMode, setViewMode] = useState('table'); // table, cards, list
+  const [viewMode, setViewMode] = useState('table');
   const [selectedClients, setSelectedClients] = useState([]);
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   
   // Estados dos modais
-  const [clientModal, setClientModal] = useState({ isOpen: false, client: null });
-  const [subscriptionModal, setSubscriptionModal] = useState({ isOpen: false, clientId: null, subscription: null });
+  const [clientModal, setClientModal] = useState({ isOpen: false, client: null, loading: false });
+  const [subscriptionModal, setSubscriptionModal] = useState({ 
+    isOpen: false, 
+    client: null, 
+    subscription: null, 
+    loading: false 
+  });
 
   // Estados de filtros avançados
   const [advancedFilters, setAdvancedFilters] = useState({
@@ -76,8 +93,8 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
           bValue = b.email.toLowerCase();
           break;
         case 'createdAt':
-          aValue = new Date(a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt);
-          bValue = new Date(b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt);
+          aValue = new Date(a.createdAt);
+          bValue = new Date(b.createdAt);
           break;
         case 'subscriptions':
           aValue = subscriptions.filter(sub => sub.clientId === a.id).length;
@@ -116,141 +133,132 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
     return { total, active, withSubscriptions, totalRevenue, averageRevenue };
   }, [clients, subscriptions]);
 
-  // Handlers
+  // Handlers do modal de cliente
   const handleCreateClient = () => {
-    setClientModal({ isOpen: true, client: null });
+    setClientModal({ isOpen: true, client: null, loading: false });
   };
 
   const handleEditClient = (client) => {
-    setClientModal({ isOpen: true, client });
-  };
-
-  const handleDeleteClient = async (clientId) => {
-    if (!window.confirm('Tem certeza que deseja deletar este cliente? Todas as assinaturas e faturas relacionadas também serão removidas.')) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Simulação de serviço - substitua pela sua lógica real (ex: clientService.delete)
-      // const result = await clientService.delete(clientId);
-      // if (result.success) {
-        setClients(prev => prev.filter(c => c.id !== clientId));
-        setSubscriptions(prev => prev.filter(s => s.clientId !== clientId));
-        alert('✅ Cliente deletado com sucesso!');
-      // } else {
-      //   alert('❌ Erro ao deletar cliente: ' + result.error);
-      // }
-    } catch (error) {
-      console.error('Erro ao deletar cliente:', error);
-      alert('❌ Erro inesperado ao deletar cliente');
-    } finally {
-      setLoading(false);
-    }
+    setClientModal({ isOpen: true, client, loading: false });
   };
 
   const handleSaveClient = async (clientData) => {
-    setLoading(true);
     try {
+      setClientModal(prev => ({ ...prev, loading: true }));
+
       if (clientModal.client) {
         // Editar cliente existente
-        // const result = await clientService.update(clientModal.client.id, clientData);
-        // if (result.success) {
-          setClients(prev => prev.map(c => 
-            c.id === clientModal.client.id 
-              ? { ...c, ...clientData, updatedAt: new Date() }
-              : c
-          ));
-          setClientModal({ isOpen: false, client: null });
-          alert('✅ Cliente atualizado com sucesso!');
-        // } else {
-        //   alert('❌ Erro ao atualizar cliente: ' + result.error);
-        // }
+        await updateClient(clientModal.client.id, clientData);
+        console.log('✅ Cliente atualizado com sucesso');
       } else {
         // Criar novo cliente
-        // const result = await clientService.create(clientData);
-        // if (result.success) {
-          const newClient = {
-            id: new Date().getTime().toString(), // ID simulado
-            ...clientData,
-            status: 'active',
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
-          setClients(prev => [newClient, ...prev]);
-          setClientModal({ isOpen: false, client: null });
-          alert('✅ Cliente criado com sucesso!');
-        // } else {
-        //   alert('❌ Erro ao criar cliente: ' + result.error);
-        // }
+        await createClient(clientData);
+        console.log('✅ Cliente criado com sucesso');
       }
+
+      // Fechar modal
+      setClientModal({ isOpen: false, client: null, loading: false });
+      
     } catch (error) {
-      console.error('Erro ao salvar cliente:', error);
-      alert('❌ Erro inesperado ao salvar cliente');
+      console.error('❌ Erro ao salvar cliente:', error);
+      alert(`Erro ao salvar cliente: ${error.message}`);
     } finally {
-      setLoading(false);
+      setClientModal(prev => ({ ...prev, loading: false }));
     }
   };
 
-  const handleCreateSubscription = (clientId) => {
-    setSubscriptionModal({ isOpen: true, clientId, subscription: null });
+  const handleDeleteClient = async (clientId) => {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const clientSubscriptions = subscriptions.filter(s => s.clientId === clientId);
+    
+    let confirmMessage = `Tem certeza que deseja excluir o cliente "${client.name}"?`;
+    
+    if (clientSubscriptions.length > 0) {
+      confirmMessage += `\n\nEste cliente possui ${clientSubscriptions.length} assinatura(s) que também serão removidas.`;
+    }
+    
+    confirmMessage += '\n\nEsta ação não pode ser desfeita.';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      await deleteClient(clientId);
+      console.log('✅ Cliente deletado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao deletar cliente:', error);
+      alert(`Erro ao deletar cliente: ${error.message}`);
+    }
+  };
+
+  // Handlers do modal de assinatura
+  const handleCreateSubscription = (client) => {
+    setSubscriptionModal({ 
+      isOpen: true, 
+      client, 
+      subscription: null, 
+      loading: false 
+    });
   };
 
   const handleEditSubscription = (subscription) => {
-    setSubscriptionModal({ isOpen: true, clientId: subscription.clientId, subscription });
+    const client = clients.find(c => c.id === subscription.clientId);
+    setSubscriptionModal({ 
+      isOpen: true, 
+      client, 
+      subscription, 
+      loading: false 
+    });
   };
 
   const handleSaveSubscription = async (subscriptionData) => {
-    setLoading(true);
     try {
+      setSubscriptionModal(prev => ({ ...prev, loading: true }));
+
       if (subscriptionModal.subscription) {
         // Editar assinatura existente
-        // const result = await subscriptionService.update(subscriptionModal.subscription.id, subscriptionData);
-        // if (result.success) {
-          setSubscriptions(prev => prev.map(s => 
-            s.id === subscriptionModal.subscription.id 
-              ? { ...s, ...subscriptionData, updatedAt: new Date() }
-              : s
-          ));
-          setSubscriptionModal({ isOpen: false, clientId: null, subscription: null });
-          alert('✅ Assinatura atualizada com sucesso!');
-        // } else {
-        //   alert('❌ Erro ao atualizar assinatura: ' + result.error);
-        // }
+        await updateSubscription(subscriptionModal.subscription.id, subscriptionData);
+        console.log('✅ Assinatura atualizada com sucesso');
       } else {
         // Criar nova assinatura
-        const client = clients.find(c => c.id === subscriptionModal.clientId);
-        const fullSubscriptionData = {
-          ...subscriptionData,
-          clientId: subscriptionModal.clientId,
-          clientName: client.name,
-          status: 'active'
-        };
-
-        // const result = await subscriptionService.create(fullSubscriptionData);
-        // if (result.success) {
-          const newSubscription = {
-            id: new Date().getTime().toString(), // ID simulado
-            ...fullSubscriptionData,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
-          setSubscriptions(prev => [newSubscription, ...prev]);
-          setSubscriptionModal({ isOpen: false, clientId: null, subscription: null });
-          alert('✅ Assinatura criada com sucesso!');
-        // } else {
-        //   alert('❌ Erro ao criar assinatura: ' + result.error);
-        // }
+        await createSubscription(subscriptionData);
+        console.log('✅ Assinatura criada com sucesso');
       }
+
+      // Fechar modal
+      setSubscriptionModal({ isOpen: false, client: null, subscription: null, loading: false });
+      
     } catch (error) {
-      console.error('Erro ao salvar assinatura:', error);
-      alert('❌ Erro inesperado ao salvar assinatura');
+      console.error('❌ Erro ao salvar assinatura:', error);
+      alert(`Erro ao salvar assinatura: ${error.message}`);
     } finally {
-      setLoading(false);
+      setSubscriptionModal(prev => ({ ...prev, loading: false }));
     }
   };
 
+  const handleDeleteSubscription = async (subscriptionId) => {
+    const subscription = subscriptions.find(s => s.id === subscriptionId);
+    if (!subscription) return;
 
+    const confirmMessage = `Tem certeza que deseja excluir a assinatura "${subscription.name}"?\n\nEsta ação não pode ser desfeita.`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      await deleteSubscription(subscriptionId);
+      console.log('✅ Assinatura deletada com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao deletar assinatura:', error);
+      alert(`Erro ao deletar assinatura: ${error.message}`);
+    }
+  };
+
+  // Funções utilitárias
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -327,7 +335,42 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
     });
   };
 
-  // O restante do seu código JSX continua o mesmo...
+  // Obter assinaturas do cliente
+  const getClientSubscriptions = (clientId) => {
+    return subscriptions.filter(sub => sub.clientId === clientId);
+  };
+
+  // Loading principal
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner size="large" />
+          <p className="mt-4 text-gray-600">Carregando clientes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Erro principal
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg border border-red-200">
+          <div className="text-6xl mb-4 text-red-500">❌</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Erro ao carregar dados</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn-primary px-6 py-2 rounded-lg"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
       <div className="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -350,8 +393,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
               <div className="flex bg-white rounded-lg p-1 shadow-sm border">
                 {[
                   { key: 'table', icon: '📋', label: 'Tabela' },
-                  { key: 'cards', icon: '🃏', label: 'Cards' },
-                  { key: 'list', icon: '📝', label: 'Lista' }
+                  { key: 'cards', icon: '🃏', label: 'Cards' }
                 ].map(view => (
                   <button
                     key={view.key}
@@ -381,10 +423,10 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
               
               <button
                 onClick={handleCreateClient}
-                disabled={loading}
-                className="bg-orange-600 text-white hover:bg-orange-700 flex items-center px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50"
+                disabled={loading || clientModal.loading}
+                className="bg-orange-600 text-white hover:bg-orange-700 flex items-center px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none"
               >
-                {loading ? (
+                {clientModal.loading ? (
                   <>
                     <LoadingSpinner size="small" />
                     <span className="ml-2">Salvando...</span>
@@ -423,7 +465,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                 ✅
               </div>
               <div className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                {((clientStats.active / clientStats.total) * 100).toFixed(0)}%
+                {clientStats.total > 0 ? Math.round((clientStats.active / clientStats.total) * 100) : 0}%
               </div>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">{clientStats.active}</div>
@@ -436,7 +478,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                 🔄
               </div>
               <div className="text-xs font-medium px-2 py-1 bg-orange-100 text-orange-700 rounded-full">
-                {((clientStats.withSubscriptions / clientStats.total) * 100).toFixed(0)}%
+                {clientStats.total > 0 ? Math.round((clientStats.withSubscriptions / clientStats.total) * 100) : 0}%
               </div>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">{clientStats.withSubscriptions}</div>
@@ -679,7 +721,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                   </thead>
                   <tbody>
                     {filteredClients.map(client => {
-                      const clientSubscriptions = subscriptions.filter(sub => sub.clientId === client.id);
+                      const clientSubscriptions = getClientSubscriptions(client.id);
                       const clientRevenue = clientSubscriptions.reduce((sum, sub) => sum + parseFloat(sub.amount || 0), 0);
                       
                       return (
@@ -731,23 +773,37 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                               <span className="text-sm text-gray-500">
                                 / {clientSubscriptions.length} total
                               </span>
-                              {clientSubscriptions.length > 0 && (
-                                <button
-                                  onClick={() => handleCreateSubscription(client.id)}
-                                  className="text-orange-600 hover:text-orange-700 p-1"
-                                  title="Adicionar nova assinatura"
-                                >
-                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                  </svg>
-                                </button>
-                              )}
+                              <button
+                                onClick={() => handleCreateSubscription(client)}
+                                className="text-orange-600 hover:text-orange-700 p-1"
+                                title="Adicionar nova assinatura"
+                              >
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                              </button>
                             </div>
                             {clientSubscriptions.length > 0 && (
                               <div className="mt-1 space-y-1">
                                 {clientSubscriptions.slice(0, 2).map(sub => (
-                                  <div key={sub.id} className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                    {sub.name} - {formatCurrency(sub.amount)}
+                                  <div key={sub.id} className="flex items-center justify-between text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                    <span>{sub.name} - {formatCurrency(sub.amount)}</span>
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => handleEditSubscription(sub)}
+                                        className="text-blue-600 hover:text-blue-700"
+                                        title="Editar assinatura"
+                                      >
+                                        ✏️
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSubscription(sub.id)}
+                                        className="text-red-600 hover:text-red-700"
+                                        title="Excluir assinatura"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                                 {clientSubscriptions.length > 2 && (
@@ -776,7 +832,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                           <td>
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => handleCreateSubscription(client.id)}
+                                onClick={() => handleCreateSubscription(client)}
                                 className="text-green-600 hover:text-green-700 p-2 hover:bg-green-50 rounded-lg transition-colors"
                                 title="Nova assinatura"
                               >
@@ -832,7 +888,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredClients.map(client => {
-                  const clientSubscriptions = subscriptions.filter(sub => sub.clientId === client.id);
+                  const clientSubscriptions = getClientSubscriptions(client.id);
                   const clientRevenue = clientSubscriptions.reduce((sum, sub) => sum + parseFloat(sub.amount || 0), 0);
                   
                   return (
@@ -891,7 +947,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                             Assinaturas ({clientSubscriptions.length})
                           </h5>
                           <button
-                            onClick={() => handleCreateSubscription(client.id)}
+                            onClick={() => handleCreateSubscription(client)}
                             className="text-orange-600 hover:text-orange-700 p-1 hover:bg-orange-50 rounded-lg transition-colors"
                             title="Nova assinatura"
                           >
@@ -905,7 +961,7 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                           <div className="text-center py-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                             <p className="text-gray-500 text-sm">Nenhuma assinatura</p>
                             <button
-                              onClick={() => handleCreateSubscription(client.id)}
+                              onClick={() => handleCreateSubscription(client)}
                               className="text-orange-600 hover:text-orange-700 text-sm font-medium mt-1"
                             >
                               Criar primeira assinatura
@@ -936,15 +992,27 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
                                     {sub.status === 'active' ? '✅ Ativa' : '⏸️ Inativa'}
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => handleEditSubscription(sub)}
-                                  className="ml-2 text-blue-600 hover:text-blue-700 p-1"
-                                  title="Editar assinatura"
-                                >
-                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                  </svg>
-                                </button>
+                                <div className="flex gap-1 ml-2">
+                                  <button
+                                    onClick={() => handleEditSubscription(sub)}
+                                    className="text-blue-600 hover:text-blue-700 p-1"
+                                    title="Editar assinatura"
+                                  >
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSubscription(sub.id)}
+                                    className="text-red-600 hover:text-red-700 p-1"
+                                    title="Excluir assinatura"
+                                  >
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
+                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414L7.586 12l-1.293 1.293a1 1 0 101.414 1.414L9 13.414l1.293 1.293a1 1 0 001.414-1.414L10.414 12l1.293-1.293z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             ))}
                             {clientSubscriptions.length > 3 && (
@@ -1002,133 +1070,27 @@ const ClientsPage = ({ clients, setClients, subscriptions, setSubscriptions }) =
             )}
           </div>
         )}
-
-        {/* Visualização em Lista Compacta */}
-        {viewMode === 'list' && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Lista Compacta ({filteredClients.length})
-              </h3>
-            </div>
-            
-            {filteredClients.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="text-6xl mb-4">📝</div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum cliente encontrado</h3>
-                <p className="text-gray-600 mb-6">Ajuste os filtros para ver mais resultados</p>
-                <button onClick={clearFilters} className="btn-secondary">
-                  Limpar Filtros
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-200">
-                {filteredClients.map(client => {
-                  const clientSubscriptions = subscriptions.filter(sub => sub.clientId === client.id);
-                  const clientRevenue = clientSubscriptions.reduce((sum, sub) => sum + parseFloat(sub.amount || 0), 0);
-                  
-                  return (
-                    <div key={client.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-semibold text-orange-700">
-                            {client.name.charAt(0).toUpperCase()}
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-semibold text-gray-900 truncate">{client.name}</h4>
-                              {client.status === 'inactive' && (
-                                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                                  Inativo
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                              <span>📧 {client.email}</span>
-                              {client.phone && <span>📞 {formatPhone(client.phone)}</span>}
-                              <span>📅 {formatDate(client.createdAt)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-6">
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
-                              {clientSubscriptions.filter(sub => sub.status === 'active').length}
-                            </div>
-                            <div className="text-xs text-gray-500">Assinaturas</div>
-                          </div>
-                          
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-green-600">
-                              {formatCurrency(clientRevenue)}
-                            </div>
-                            <div className="text-xs text-gray-500">Receita/mês</div>
-                          </div>
-                          
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleCreateSubscription(client.id)}
-                              className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Nova assinatura"
-                            >
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                            
-                            <button
-                              onClick={() => handleEditClient(client)}
-                              className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Editar cliente"
-                            >
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
-                            </button>
-                            
-                            <button
-                              onClick={() => handleDeleteClient(client.id)}
-                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Excluir cliente"
-                            >
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414L7.586 12l-1.293 1.293a1 1 0 101.414 1.414L9 13.414l1.293 1.293a1 1 0 001.414-1.414L10.414 12l1.293-1.293z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Modais */}
       <ClientModal
         isOpen={clientModal.isOpen}
-        onClose={() => setClientModal({ isOpen: false, client: null })}
+        onClose={() => setClientModal({ isOpen: false, client: null, loading: false })}
         onSave={handleSaveClient}
         client={clientModal.client}
-        loading={loading}
+        loading={clientModal.loading}
       />
 
       <SubscriptionModal
         isOpen={subscriptionModal.isOpen}
-        onClose={() => setSubscriptionModal({ isOpen: false, clientId: null, subscription: null })}
+        onClose={() => setSubscriptionModal({ isOpen: false, client: null, subscription: null, loading: false })}
         onSave={handleSaveSubscription}
-        clientId={subscriptionModal.clientId}
+        client={subscriptionModal.client}
         subscription={subscriptionModal.subscription}
-        clients={clients}
-        loading={loading}
+        loading={subscriptionModal.loading}
       />
     </div>
   );
 };
+
 export default ClientsPage;

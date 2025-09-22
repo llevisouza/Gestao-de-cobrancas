@@ -5,7 +5,8 @@ export const ROUTES = {
   CLIENTS: 'clients',
   REPORTS: 'reports',
   SETTINGS: 'settings',
-  WHATSAPP: 'whatsapp'
+  WHATSAPP: 'whatsapp',
+  WHATSAPP_AUTOMATION: 'whatsapp-automation' // Rota adicionada
 };
 
 export const INVOICE_STATUS = {
@@ -28,6 +29,7 @@ export const SUBSCRIPTION_STATUS = {
   CANCELLED: 'cancelled'
 };
 
+// ... restante do arquivo sem alterações
 export const SUBSCRIPTION_STATUS_LABELS = {
   [SUBSCRIPTION_STATUS.ACTIVE]: 'Ativa',
   [SUBSCRIPTION_STATUS.INACTIVE]: 'Inativa',

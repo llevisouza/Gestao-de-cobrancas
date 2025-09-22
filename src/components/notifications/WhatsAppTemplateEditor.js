@@ -1,474 +1,763 @@
-// src/components/notifications/WhatsAppTemplateEditor.js
-import React, { useState, useEffect } from 'react';
-import { whatsappService } from '../../services/whatsappService';
-import { formatCurrency, formatDate } from '../../utils/formatters';
-import Modal from '../common/Modal';
-import LoadingSpinner from '../common/LoadingSpinner';
+// src/services/whatsappAutomationService.js - CORREÇÕES APLICADAS
+import { whatsappService } from './whatsappService';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  doc,
+  limit,        // CORREÇÃO: Importação correta da função limit
+  orderBy       // CORREÇÃO: Importação correta da função orderBy
+} from 'firebase/firestore';
+import { db } from './firebase';
+import { formatDate, getCurrentDate, getDaysDifference } from '../utils/dateUtils';
 
-const WhatsAppTemplateEditor = ({ isOpen, onClose, onSave, templateType, initialData }) => {
-  const [template, setTemplate] = useState('');
-  const [previewMode, setPreviewMode] = useState(false);
-  const [previewMessage, setPreviewMessage] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [variables, setVariables] = useState([]);
-  
-  // Dados de exemplo para preview
-  const mockData = {
-    client: {
-      id: 'client-123',
-      name: 'João Silva',
-      email: 'joao@exemplo.com',
-      phone: '(11) 99999-1234',
-      pix: 'joao@exemplo.com'
-    },
-    invoice: {
-      id: 'inv-456',
-      amount: 150.00,
-      dueDate: '2024-12-25',
-      generationDate: '2024-12-01',
-      status: 'pending'
-    },
-    subscription: {
-      id: 'sub-789',
-      name: 'Plano Premium Mensal',
-      amount: 150.00,
-      recurrenceType: 'monthly',
-      dayOfMonth: 25,
-      startDate: '2024-01-01',
-      status: 'active'
-    }
-  };
-
-  // Variáveis disponíveis para uso nos templates
-  const availableVariables = [
-    { key: '{{client.name}}', description: 'Nome do cliente', example: 'João Silva' },
-    { key: '{{client.phone}}', description: 'Telefone do cliente', example: '(11) 99999-1234' },
-    { key: '{{client.email}}', description: 'Email do cliente', example: 'joao@exemplo.com' },
-    { key: '{{invoice.amount}}', description: 'Valor da fatura', example: 'R$ 150,00' },
-    { key: '{{invoice.dueDate}}', description: 'Data de vencimento', example: '25/12/2024' },
-    { key: '{{invoice.id}}', description: 'ID da fatura', example: '#inv-456' },
-    { key: '{{subscription.name}}', description: 'Nome do plano', example: 'Plano Premium' },
-    { key: '{{company.name}}', description: 'Nome da empresa', example: 'Conexão Delivery' },
-    { key: '{{company.phone}}', description: 'Telefone da empresa', example: '(11) 99999-9999' },
-    { key: '{{company.pix}}', description: 'Chave PIX da empresa', example: 'empresa@email.com' },
-    { key: '{{days.overdue}}', description: 'Dias em atraso', example: '5 dias' },
-    { key: '{{days.until}}', description: 'Dias até vencimento', example: '3 dias' }
-  ];
-
-  // Templates padrão
-  const defaultTemplates = {
-    overdue: `🚨 *FATURA VENCIDA* 🚨
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Olá *{{client.name}}*! 👋
-
-Sua fatura está *{{days.overdue}} em atraso* e precisa ser regularizada com urgência.
-
-💰 *RESUMO DA COBRANÇA*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 💵 Valor: *{{invoice.amount}}*
-┃ 📅 Vencimento: {{invoice.dueDate}}
-┃ ⚠️ Dias em atraso: *{{days.overdue}}*
-┃ 🆔 Código: {{invoice.id}}
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-💳 *PAGUE AGORA VIA PIX*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🔑 Chave PIX:
-┃ \`{{company.pix}}\`
-┃ 
-┃ 📱 Copie a chave acima
-┃ 💸 Faça o PIX do valor exato
-┃ 📷 Envie o comprovante aqui
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-⚡ *IMPORTANTE:*
-• ⏰ Quite hoje e evite juros
-• 📱 Comprovante via WhatsApp
-• 🔄 Confirmação em até 1h
-
-📞 {{company.name}} - {{company.phone}}`,
-
-    reminder: `🔔 *LEMBRETE DE PAGAMENTO* 🔔
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Oi *{{client.name}}*! 😊
-
-Sua fatura vence em *{{days.until}}*. Que tal já garantir o pagamento?
-
-💰 *DETALHES DO PAGAMENTO*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 💵 Valor: *{{invoice.amount}}*
-┃ 📅 Vence em: {{invoice.dueDate}}
-┃ ⏰ Faltam: *{{days.until}}*
-┃ 🆔 Código: {{invoice.id}}
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-💳 *PIX PARA PAGAMENTO*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🔑 Nossa Chave PIX:
-┃ \`{{company.pix}}\`
-┃ 
-┃ ✅ Pague antecipado
-┃ 📷 Envie o comprovante
-┃ 🏆 Sem juros nem multas
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-📞 {{company.name}} - {{company.phone}}`,
-
-    new_invoice: `📄 *NOVA FATURA DISPONÍVEL* 📄
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Olá *{{client.name}}*! 👋
-
-Uma nova fatura foi gerada para você!
-
-💰 *INFORMAÇÕES DA FATURA*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 💵 Valor: *{{invoice.amount}}*
-┃ 📅 Vencimento: {{invoice.dueDate}}
-┃ 📋 Gerada em: {{invoice.generationDate}}
-┃ 🆔 Código: {{invoice.id}}
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-💳 *PAGAMENTO VIA PIX*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🔑 Chave PIX:
-┃ \`{{company.pix}}\`
-┃ 
-┃ 🚀 Pagamento instantâneo
-┃ 📱 Confirmação automática
-┃ 🎯 Sem taxas extras
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-📞 {{company.name}} - {{company.phone}}`,
-
-    payment_confirmed: `✅ *PAGAMENTO CONFIRMADO* ✅
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-*{{client.name}}*, seu pagamento foi confirmado! 🎉
-
-💰 *COMPROVANTE DE PAGAMENTO*
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ ✅ Status: *PAGO*
-┃ 💵 Valor: {{invoice.amount}}
-┃ 📅 Pago em: {{invoice.paidDate}}
-┃ 🆔 Código: {{invoice.id}}
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-🎯 *PRÓXIMOS PASSOS:*
-• ✅ Pagamento processado
-• 📱 Comprovante salvo
-• 🔄 Próxima fatura em breve
-• 🏆 Obrigado pela preferência!
-
-📞 {{company.name}} - {{company.phone}}`
-  };
-
-  // Carregar template inicial
-  useEffect(() => {
-    if (isOpen) {
-      const savedTemplate = localStorage.getItem(`whatsapp_template_${templateType}`);
-      if (savedTemplate) {
-        setTemplate(savedTemplate);
-      } else if (initialData?.template) {
-        setTemplate(initialData.template);
-      } else if (defaultTemplates[templateType]) {
-        setTemplate(defaultTemplates[templateType]);
-      }
-    }
-  }, [isOpen, templateType, initialData]);
-
-  // Função para substituir variáveis
-  const replaceVariables = (text) => {
-    let result = text;
-    
-    // Dados da empresa (pegar do whatsappService)
-    const companyInfo = whatsappService.companyInfo || {
-      name: 'Conexão Delivery',
-      phone: '(11) 99999-9999',
-      pix: '11999999999'
+class WhatsAppAutomationService {
+  constructor() {
+    this.isRunning = false;
+    this.intervalId = null;
+    this.config = {
+      enabled: false,
+      checkInterval: 60000, // 1 minuto
+      businessHours: {
+        start: 8, // 8h
+        end: 18, // 18h
+        workDays: [1, 2, 3, 4, 5] // Segunda a Sexta
+      },
+      reminderDays: 3, // Lembrete 3 dias antes
+      overdueScalation: [1, 3, 7, 15, 30], // Escalonamento em dias
+      maxMessagesPerDay: 1, // Máximo 1 mensagem por cliente por dia
+      delayBetweenMessages: 5000 // 5 segundos entre mensagens
     };
-
-    // Calcular dias
-    const today = new Date();
-    const dueDate = new Date(mockData.invoice.dueDate);
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    const daysOverdue = diffDays < 0 ? Math.abs(diffDays) : 0;
-    const daysUntil = diffDays > 0 ? diffDays : 0;
-
-    // Substituições
-    const replacements = {
-      '{{client.name}}': mockData.client.name,
-      '{{client.phone}}': mockData.client.phone,
-      '{{client.email}}': mockData.client.email,
-      '{{invoice.amount}}': formatCurrency(mockData.invoice.amount),
-      '{{invoice.dueDate}}': formatDate(mockData.invoice.dueDate),
-      '{{invoice.generationDate}}': formatDate(mockData.invoice.generationDate),
-      '{{invoice.paidDate}}': formatDate(new Date()),
-      '{{invoice.id}}': `#${mockData.invoice.id?.substring(0, 8)}`,
-      '{{subscription.name}}': mockData.subscription.name,
-      '{{company.name}}': companyInfo.name,
-      '{{company.phone}}': companyInfo.phone,
-      '{{company.pix}}': companyInfo.pixKey || companyInfo.pix,
-      '{{days.overdue}}': `${daysOverdue} dias`,
-      '{{days.until}}': `${daysUntil} dias`
+    this.stats = {
+      messagesSent: 0, // CORREÇÃO: Corrigido o nome da propriedade
+      errors: 0,
+      lastRun: null,
+      startTime: null
     };
+  }
 
-    Object.entries(replacements).forEach(([key, value]) => {
-      result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), value);
-    });
+  // =============================================
+  // CONTROLES PRINCIPAIS
+  // =============================================
 
-    return result;
-  };
-
-  // Atualizar preview em tempo real
-  useEffect(() => {
-    if (template) {
-      const preview = replaceVariables(template);
-      setPreviewMessage(preview);
+  // Iniciar automação
+  async startAutomation() {
+    if (this.isRunning) {
+      console.warn('⚠️ Automação já está rodando');
+      return { success: false, error: 'Automação já está ativa' };
     }
-  }, [template]);
 
-  // Inserir variável no cursor
-  const insertVariable = (variable) => {
-    const textarea = document.getElementById('template-textarea');
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newTemplate = template.substring(0, start) + variable + template.substring(end);
-      setTemplate(newTemplate);
-      
-      // Reposicionar cursor após a variável inserida
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + variable.length, start + variable.length);
-      }, 0);
-    }
-  };
-
-  // Salvar template
-  const handleSave = async () => {
-    setSaving(true);
     try {
-      // Salvar no localStorage
-      localStorage.setItem(`whatsapp_template_${templateType}`, template);
+      console.log('🤖 Iniciando automação WhatsApp...');
       
-      // Atualizar o serviço WhatsApp com o novo template
-      whatsappService.customTemplates = whatsappService.customTemplates || {};
-      whatsappService.customTemplates[templateType] = template;
+      // Verificar se WhatsApp está conectado
+      const connectionStatus = await whatsappService.checkConnection();
+      if (!connectionStatus.connected) {
+        throw new Error('WhatsApp não está conectado');
+      }
+
+      this.isRunning = true;
+      this.stats.startTime = new Date();
+      this.config.enabled = true;
+
+      // Executar primeira verificação
+      await this.runAutomationCycle();
+
+      // Configurar intervalo
+      this.intervalId = setInterval(async () => {
+        if (this.isRunning && this.config.enabled) {
+          await this.runAutomationCycle();
+        }
+      }, this.config.checkInterval);
+
+      console.log('✅ Automação WhatsApp iniciada com sucesso');
       
-      // Callback para o componente pai
-      if (onSave) {
-        await onSave({
-          type: templateType,
-          template: template,
-          preview: previewMessage
+      // Salvar log
+      await this.saveAutomationLog('automation_started', {
+        config: this.config,
+        startTime: this.stats.startTime
+      });
+
+      return { 
+        success: true, 
+        message: 'Automação iniciada com sucesso',
+        config: this.config
+      };
+    } catch (error) {
+      console.error('❌ Erro ao iniciar automação:', error);
+      this.isRunning = false;
+      this.config.enabled = false;
+      
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  }
+
+  // Parar automação
+  async stopAutomation() {
+    if (!this.isRunning) {
+      console.warn('⚠️ Automação não está rodando');
+      return { success: false, error: 'Automação não está ativa' };
+    }
+
+    try {
+      console.log('🛑 Parando automação WhatsApp...');
+      
+      this.isRunning = false;
+      this.config.enabled = false;
+      
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
+
+      console.log('✅ Automação WhatsApp parada');
+      
+      // Salvar log
+      await this.saveAutomationLog('automation_stopped', {
+        stats: this.stats,
+        duration: new Date() - this.stats.startTime
+      });
+
+      return { 
+        success: true, 
+        message: 'Automação parada com sucesso' 
+      };
+    } catch (error) {
+      console.error('❌ Erro ao parar automação:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  }
+
+  // Executar ciclo manual
+  async runManualCycle() {
+    console.log('🔄 Executando ciclo manual de automação...');
+    
+    try {
+      const result = await this.runAutomationCycle();
+      return {
+        success: true,
+        ...result
+      };
+    } catch (error) {
+      console.error('❌ Erro no ciclo manual:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // =============================================
+  // CICLO DE AUTOMAÇÃO
+  // =============================================
+
+  // Executar ciclo completo de automação
+  async runAutomationCycle() {
+    try {
+      console.log('🔄 Executando ciclo de automação...');
+      this.stats.lastRun = new Date();
+
+      // Verificar horário comercial
+      if (!this.isBusinessHours()) {
+        console.log('⏰ Fora do horário comercial, pulando ciclo');
+        return {
+          skipped: true,
+          reason: 'Fora do horário comercial',
+          nextCheck: this.getNextBusinessHour()
+        };
+      }
+
+      // Verificar conexão WhatsApp
+      const connectionStatus = await whatsappService.checkConnection();
+      if (!connectionStatus.connected) {
+        throw new Error('WhatsApp desconectado');
+      }
+
+      // Buscar dados necessários
+      const [clients, invoices, subscriptions] = await Promise.all([
+        this.getClients(),
+        this.getInvoices(),
+        this.getSubscriptions()
+      ]);
+
+      // Calcular notificações pendentes
+      const pendingNotifications = await this.calculatePendingNotifications(
+        invoices, 
+        clients, 
+        subscriptions
+      );
+
+      // Filtrar notificações que não foram enviadas hoje
+      const filteredNotifications = await this.filterTodaysMessages(pendingNotifications);
+
+      console.log(`📊 Notificações encontradas: ${filteredNotifications.length}`);
+
+      let sent = 0;
+      let errors = 0;
+
+      // Processar notificações
+      for (const notification of filteredNotifications) {
+        try {
+          const result = await this.processNotification(notification);
+          if (result.success) {
+            sent++;
+            this.stats.messagesSent++; // CORREÇÃO: Nome corrigido
+          } else {
+            errors++;
+            this.stats.errors++;
+          }
+
+          // Delay entre mensagens
+          if (filteredNotifications.indexOf(notification) < filteredNotifications.length - 1) {
+            await this.delay(this.config.delayBetweenMessages);
+          }
+        } catch (error) {
+          console.error('❌ Erro ao processar notificação:', error);
+          errors++;
+          this.stats.errors++;
+        }
+      }
+
+      const cycleResult = {
+        processed: filteredNotifications.length,
+        sent,
+        errors,
+        timestamp: new Date(),
+        businessHours: true
+      };
+
+      // Salvar log do ciclo
+      await this.saveAutomationLog('cycle_completed', cycleResult);
+
+      console.log(`✅ Ciclo concluído: ${sent} enviados, ${errors} erros`);
+
+      return cycleResult;
+    } catch (error) {
+      console.error('❌ Erro no ciclo de automação:', error);
+      this.stats.errors++;
+      
+      await this.saveAutomationLog('cycle_error', {
+        error: error.message,
+        timestamp: new Date()
+      });
+
+      throw error;
+    }
+  }
+
+  // =============================================
+  // PROCESSAMENTO DE NOTIFICAÇÕES
+  // =============================================
+
+  // Calcular notificações pendentes
+  async calculatePendingNotifications(invoices, clients, subscriptions) {
+    const notifications = [];
+
+    for (const invoice of invoices) {
+      if (!['pending', 'overdue'].includes(invoice.status)) continue;
+
+      const client = clients.find(c => c.id === invoice.clientId);
+      if (!client || !client.phone) continue;
+
+      const subscription = subscriptions.find(s => s.id === invoice.subscriptionId);
+      const daysDiff = getDaysDifference(invoice.dueDate);
+
+      // Lembretes (antes do vencimento)
+      if (daysDiff >= 0 && daysDiff <= this.config.reminderDays) {
+        notifications.push({
+          type: 'reminder',
+          priority: 2,
+          invoice,
+          client,
+          subscription,
+          daysDiff
         });
       }
-      
-      alert('✅ Template salvo com sucesso!');
-      onClose();
+
+      // Cobranças vencidas (escalonamento)
+      if (daysDiff < 0) {
+        const daysOverdue = Math.abs(daysDiff);
+        
+        if (this.config.overdueScalation.includes(daysOverdue)) {
+          notifications.push({
+            type: 'overdue',
+            priority: 1, // Maior prioridade
+            invoice,
+            client,
+            subscription,
+            daysOverdue
+          });
+        }
+      }
+
+      // Novas faturas (geradas hoje)
+      if (invoice.generationDate === getCurrentDate() && invoice.status === 'pending') {
+        notifications.push({
+          type: 'new_invoice',
+          priority: 3,
+          invoice,
+          client,
+          subscription,
+          daysDiff: 0
+        });
+      }
+    }
+
+    // Ordenar por prioridade
+    return notifications.sort((a, b) => a.priority - b.priority);
+  }
+
+  // Filtrar mensagens já enviadas hoje
+  async filterTodaysMessages(notifications) {
+    const filtered = [];
+
+    for (const notification of notifications) {
+      const alreadySent = await whatsappService.wasMessageSentToday(
+        notification.client.id,
+        notification.type
+      );
+
+      if (!alreadySent) {
+        filtered.push(notification);
+      } else {
+        console.log(`⏭️ Mensagem já enviada hoje: ${notification.type} para ${notification.client.name}`);
+      }
+    }
+
+    return filtered;
+  }
+
+  // Processar notificação individual
+  async processNotification(notification) {
+    const { type, invoice, client, subscription } = notification;
+    
+    console.log(`📤 Processando: ${type} para ${client.name}`);
+
+    try {
+      let result;
+
+      switch (type) {
+        case 'overdue':
+          result = await whatsappService.sendOverdueNotification(invoice, client, subscription);
+          break;
+        case 'reminder':
+          result = await whatsappService.sendReminderNotification(invoice, client, subscription);
+          break;
+        case 'new_invoice':
+          result = await whatsappService.sendNewInvoiceNotification(invoice, client, subscription);
+          break;
+        default:
+          throw new Error(`Tipo de notificação inválido: ${type}`);
+      }
+
+      // Log da notificação processada
+      await this.saveNotificationLog(notification, result);
+
+      return result;
     } catch (error) {
-      console.error('Erro ao salvar template:', error);
-      alert('❌ Erro ao salvar template');
-    } finally {
-      setSaving(false);
-    }
-  };
+      console.error(`❌ Erro ao processar ${type} para ${client.name}:`, error);
+      
+      await this.saveNotificationLog(notification, {
+        success: false,
+        error: error.message
+      });
 
-  // Restaurar template padrão
-  const restoreDefault = () => {
-    if (window.confirm('Deseja restaurar o template padrão? Isso substituirá suas alterações.')) {
-      setTemplate(defaultTemplates[templateType] || '');
+      return {
+        success: false,
+        error: error.message
+      };
     }
-  };
+  }
 
-  // Obter título do template
-  const getTemplateTitle = () => {
-    const titles = {
-      overdue: '🚨 Fatura Vencida',
-      reminder: '🔔 Lembrete de Vencimento',
-      new_invoice: '📄 Nova Fatura',
-      payment_confirmed: '✅ Pagamento Confirmado'
+  // =============================================
+  // FUNÇÕES AUXILIARES
+  // =============================================
+
+  // Verificar se está em horário comercial
+  isBusinessHours() {
+    const now = new Date();
+    const hour = now.getHours();
+    const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Segunda, etc.
+
+    // Verificar se é dia útil
+    if (!this.config.businessHours.workDays.includes(dayOfWeek)) {
+      return false;
+    }
+
+    // Verificar se está no horário comercial
+    return hour >= this.config.businessHours.start && hour < this.config.businessHours.end;
+  }
+
+  // Obter próximo horário comercial
+  getNextBusinessHour() {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(this.config.businessHours.start, 0, 0, 0);
+    
+    return tomorrow;
+  }
+
+  // Delay assíncrono
+  async delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // =============================================
+  // ACESSO AOS DADOS
+  // =============================================
+
+  // Buscar clientes
+  async getClients() {
+    try {
+      const snapshot = await getDocs(collection(db, 'clients'));
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar clientes:', error);
+      return [];
+    }
+  }
+
+  // Buscar faturas
+  async getInvoices() {
+    try {
+      const snapshot = await getDocs(collection(db, 'invoices'));
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar faturas:', error);
+      return [];
+    }
+  }
+
+  // Buscar assinaturas
+  async getSubscriptions() {
+    try {
+      const snapshot = await getDocs(collection(db, 'subscriptions'));
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar assinaturas:', error);
+      return [];
+    }
+  }
+
+  // =============================================
+  // CONFIGURAÇÕES
+  // =============================================
+
+  // Atualizar configuração
+  updateConfig(newConfig) {
+    this.config = { ...this.config, ...newConfig };
+    console.log('⚙️ Configuração da automação atualizada:', this.config);
+    
+    // Se estava rodando, reiniciar com nova configuração
+    if (this.isRunning) {
+      this.stopAutomation().then(() => {
+        this.startAutomation();
+      });
+    }
+  }
+
+  // Obter configuração atual
+  getConfig() {
+    return { ...this.config };
+  }
+
+  // Obter estatísticas
+  getStats() {
+    return {
+      ...this.stats,
+      isRunning: this.isRunning,
+      uptime: this.stats.startTime ? new Date() - this.stats.startTime : 0,
+      config: this.config
     };
-    return titles[templateType] || 'Template';
-  };
+  }
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Editar Template: ${getTemplateTitle()}`}
-    >
-      <div className="space-y-6">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setPreviewMode(!previewMode)}
-              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                previewMode
-                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                  : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
-              }`}
-            >
-              {previewMode ? '✏️ Editar' : '👁️ Preview'}
-            </button>
-            
-            <button
-              onClick={restoreDefault}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              🔄 Restaurar Padrão
-            </button>
-          </div>
-          
-          <div className="text-sm text-gray-500">
-            {template.length} caracteres
-          </div>
-        </div>
+  // =============================================
+  // LOGS E HISTÓRICO
+  // =============================================
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Editor de Template */}
-          <div className="lg:col-span-2 space-y-4">
-            {!previewMode ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Template da Mensagem
-                </label>
-                <textarea
-                  id="template-textarea"
-                  value={template}
-                  onChange={(e) => setTemplate(e.target.value)}
-                  className="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                  placeholder="Digite seu template aqui..."
-                  style={{ lineHeight: '1.6' }}
-                />
-                <div className="mt-2 text-xs text-gray-500">
-                  💡 Use as variáveis da lista ao lado para personalizar a mensagem
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preview da Mensagem (como será enviada)
-                </label>
-                <div className="h-96 p-4 border border-gray-300 rounded-lg bg-green-50 overflow-y-auto">
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-green-200">
-                    <div className="flex items-center mb-3">
-                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
-                        <span className="text-white text-sm font-medium">CD</span>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">Conexão Delivery</div>
-                        <div className="text-xs text-gray-500">WhatsApp Business</div>
-                      </div>
-                    </div>
-                    <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800">
-                      {previewMessage}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+  // Salvar log da automação
+  async saveAutomationLog(action, data = {}) {
+    try {
+      await addDoc(collection(db, 'automation_logs'), {
+        action,
+        data,
+        timestamp: new Date(),
+        service: 'whatsapp_automation'
+      });
+    } catch (error) {
+      console.error('❌ Erro ao salvar log da automação:', error);
+    }
+  }
 
-          {/* Lista de Variáveis */}
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">
-                📝 Variáveis Disponíveis
-              </h4>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {availableVariables.map((variable) => (
-                  <div
-                    key={variable.key}
-                    className="p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors"
-                    onClick={() => insertVariable(variable.key)}
-                  >
-                    <div className="font-mono text-xs text-blue-600 font-medium">
-                      {variable.key}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      {variable.description}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      Ex: {variable.example}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+  // Salvar log de notificação
+  async saveNotificationLog(notification, result) {
+    try {
+      await addDoc(collection(db, 'notification_logs'), {
+        type: notification.type,
+        clientId: notification.client.id,
+        clientName: notification.client.name,
+        invoiceId: notification.invoice.id,
+        invoiceAmount: notification.invoice.amount,
+        subscriptionId: notification.subscription?.id || null,
+        result,
+        automated: true,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('❌ Erro ao salvar log de notificação:', error);
+    }
+  }
 
-            {/* Dados de Exemplo */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h5 className="text-xs font-medium text-gray-700 mb-2">
-                🎯 Dados de Exemplo
-              </h5>
-              <div className="space-y-1 text-xs text-gray-600">
-                <div>Cliente: {mockData.client.name}</div>
-                <div>Valor: {formatCurrency(mockData.invoice.amount)}</div>
-                <div>Vencimento: {formatDate(mockData.invoice.dueDate)}</div>
-                <div>Plano: {mockData.subscription.name}</div>
-              </div>
-            </div>
+  // CORREÇÃO PRINCIPAL: Função getAutomationLogs corrigida
+  async getAutomationLogs(limitCount = 50) {
+    try {
+      const q = query(
+        collection(db, 'automation_logs'),
+        where('service', '==', 'whatsapp_automation'),
+        orderBy('timestamp', 'desc'), // CORREÇÃO: orderBy importado e usado corretamente
+        limit(limitCount) // CORREÇÃO: limit importado e usado corretamente
+      );
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar logs:', error);
+      return [];
+    }
+  }
 
-            {/* Emojis Úteis */}
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <h5 className="text-xs font-medium text-gray-700 mb-2">
-                😀 Emojis Úteis
-              </h5>
-              <div className="grid grid-cols-4 gap-2">
-                {['🚨', '🔔', '📄', '✅', '💰', '📅', '⏰', '📱', '💳', '🔑', '⚡', '📞'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => insertVariable(emoji)}
-                    className="text-lg p-2 rounded hover:bg-yellow-100 transition-colors"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+  // =============================================
+  // TESTES E DIAGNÓSTICOS
+  // =============================================
 
-        {/* Botões de Ação */}
-        <div className="flex justify-between items-center pt-6 border-t border-gray-200">
-          <div className="text-sm text-gray-500">
-            💡 Alterações são salvas automaticamente e aplicadas a todas as futuras mensagens
-          </div>
-          
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              Cancelar
-            </button>
-            
-            <button
-              onClick={handleSave}
-              disabled={saving || !template.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {saving ? (
-                <>
-                  <LoadingSpinner size="small" />
-                  <span className="ml-2">Salvando...</span>
-                </>
-              ) : (
-                '💾 Salvar Template'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-};
+  // Testar automação (modo dry-run)
+  async testAutomation() {
+    console.log('🧪 Testando automação (modo dry-run)...');
+    
+    try {
+      // Buscar dados
+      const [clients, invoices, subscriptions] = await Promise.all([
+        this.getClients(),
+        this.getInvoices(),
+        this.getSubscriptions()
+      ]);
 
-export default WhatsAppTemplateEditor;
+      // Calcular notificações
+      const pendingNotifications = await this.calculatePendingNotifications(
+        invoices,
+        clients,
+        subscriptions
+      );
+
+      // Filtrar mensagens de hoje
+      const filteredNotifications = await this.filterTodaysMessages(pendingNotifications);
+
+      const testResult = {
+        totalInvoices: invoices.length,
+        totalClients: clients.length,
+        totalSubscriptions: subscriptions.length,
+        pendingNotifications: pendingNotifications.length,
+        filteredNotifications: filteredNotifications.length,
+        businessHours: this.isBusinessHours(),
+        whatsappConnected: (await whatsappService.checkConnection()).connected,
+        notifications: filteredNotifications.map(n => ({
+          type: n.type,
+          client: n.client.name,
+          amount: n.invoice.amount,
+          dueDate: n.invoice.dueDate,
+          priority: n.priority
+        })),
+        config: this.config
+      };
+
+      console.log('✅ Teste da automação concluído:', testResult);
+      return testResult;
+    } catch (error) {
+      console.error('❌ Erro no teste da automação:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // Verificar saúde do sistema
+  async checkHealth() {
+    const health = {
+      automation: {
+        running: this.isRunning,
+        enabled: this.config.enabled,
+        lastRun: this.stats.lastRun,
+        errors: this.stats.errors
+      },
+      whatsapp: await whatsappService.checkConnection(),
+      businessHours: this.isBusinessHours(),
+      database: true, // Assume que está ok se chegou até aqui
+      timestamp: new Date()
+    };
+
+    try {
+      // Testar acesso ao banco
+      const testQuery = query(collection(db, 'clients'), limit(1)); // CORREÇÃO: Uso correto da função limit
+      await getDocs(testQuery);
+    } catch (error) {
+      health.database = false;
+      health.databaseError = error.message;
+    }
+
+    return health;
+  }
+
+  // =============================================
+  // RELATÓRIOS
+  // =============================================
+
+  // CORREÇÃO: Função getPerformanceReport corrigida
+  async getPerformanceReport(days = 7) {
+    try {
+      const since = new Date();
+      since.setDate(since.getDate() - days);
+
+      const q = query(
+        collection(db, 'notification_logs'),
+        where('automated', '==', true),
+        where('timestamp', '>=', since),
+        orderBy('timestamp', 'desc') // CORREÇÃO: orderBy importado e usado corretamente
+      );
+
+      const snapshot = await getDocs(q);
+      const logs = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      }));
+
+      const report = {
+        period: `${days} dias`,
+        totalNotifications: logs.length,
+        successful: logs.filter(log => log.result?.success).length,
+        failed: logs.filter(log => !log.result?.success).length,
+        byType: {
+          overdue: logs.filter(log => log.type === 'overdue').length,
+          reminder: logs.filter(log => log.type === 'reminder').length,
+          new_invoice: logs.filter(log => log.type === 'new_invoice').length
+        },
+        byDay: this.groupLogsByDay(logs),
+        errors: logs.filter(log => !log.result?.success).map(log => ({
+          client: log.clientName,
+          type: log.type,
+          error: log.result?.error,
+          timestamp: log.timestamp
+        })),
+        stats: this.getStats()
+      };
+
+      return report;
+    } catch (error) {
+      console.error('❌ Erro ao gerar relatório:', error);
+      return {
+        error: error.message,
+        period: `${days} dias`
+      };
+    }
+  }
+
+  // Agrupar logs por dia
+  groupLogsByDay(logs) {
+    const grouped = {};
+    
+    logs.forEach(log => {
+      const day = log.timestamp?.toISOString().split('T')[0];
+      if (!grouped[day]) {
+        grouped[day] = { total: 0, successful: 0, failed: 0 };
+      }
+      
+      grouped[day].total++;
+      if (log.result?.success) {
+        grouped[day].successful++;
+      } else {
+        grouped[day].failed++;
+      }
+    });
+
+    return grouped;
+  }
+
+  // =============================================
+  // CONTROLES DE EMERGÊNCIA
+  // =============================================
+
+  // Pausar temporariamente
+  pause() {
+    this.config.enabled = false;
+    console.log('⏸️ Automação pausada temporariamente');
+  }
+
+  // Retomar
+  resume() {
+    this.config.enabled = true;
+    console.log('▶️ Automação retomada');
+  }
+
+  // Reset completo
+  async reset() {
+    console.log('🔄 Fazendo reset da automação...');
+    
+    await this.stopAutomation();
+    
+    this.stats = {
+      messagesSent: 0, // CORREÇÃO: Nome corrigido
+      errors: 0,
+      lastRun: null,
+      startTime: null
+    };
+
+    this.config = {
+      enabled: false,
+      checkInterval: 60000,
+      businessHours: {
+        start: 8,
+        end: 18,
+        workDays: [1, 2, 3, 4, 5]
+      },
+      reminderDays: 3,
+      overdueScalation: [1, 3, 7, 15, 30],
+      maxMessagesPerDay: 1,
+      delayBetweenMessages: 5000
+    };
+
+    console.log('✅ Reset da automação concluído');
+    
+    return {
+      success: true,
+      message: 'Automação resetada com sucesso'
+    };
+  }
+}
+
+// Instância singleton
+const whatsappAutomationService = new WhatsAppAutomationService();
+
+export { whatsappAutomationService };

@@ -181,7 +181,9 @@ class WhatsAppService {
       
       const messageData = {
         number: cleanPhone,
-        text: message
+        textMessage: { // <-- ✅ Objeto correto
+           text: message // <-- ✅ Texto no lugar certo
+        }
       };
 
       // Adicionar mídia se fornecida
@@ -190,7 +192,6 @@ class WhatsAppService {
           mediaUrl: mediaUrl,
           caption: message
         };
-        delete messageData.text;
       }
 
       const response = await fetch(`${this.baseURL}/message/sendText/${this.instanceName}`, {

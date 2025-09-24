@@ -1,10 +1,12 @@
-// src/components/dashboard/Dashboard.js - VERSÃO PREMIUM MELHORADA
-import React, { useState, useEffect } from 'react';
+// src/components/dashboard/Dashboard.js - VERSÃO COMPLETA OTIMIZADA
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import KPICards from './KPICards';
 import InvoiceTable from './InvoiceTable';
 import WhatsAppQuickActions from './WhatsAppQuickActions';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { formatCurrency } from '../../utils/formatters';
+import { getDaysDifference } from '../../utils/dateUtils';
 
 const Dashboard = ({ onNavigate }) => {
   const { 
@@ -16,109 +18,173 @@ const Dashboard = ({ onNavigate }) => {
     generateInvoices 
   } = useFirestore();
 
-  // Estados para animações e funcionalidades avançadas
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [dashboardStats, setDashboardStats] = useState({
-    todayInvoices: 0,
-    pendingAmount: 0,
-    overdueCount: 0,
-    recentActivity: []
-  });
-  const [selectedPeriod, setSelectedPeriod] = useState('today');
-  const [showAnimations, setShowAnimations] = useState(true);
-  const [notifications, setNotifications] = useState([]);
+  // ⚡ OTIMIZAÇÃO: Estados locais otimizados
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [quickActions, setQuickActions] = useState({
     generateInvoices: false,
-    sendReminders: false,
+    createExample: false,
     exportData: false
   });
+  const [notifications, setNotifications] = useState([]);
+  const [showAnimations, setShowAnimations] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState('today');
 
-  // Atualizar relógio em tempo real
+  // ⚡ OTIMIZAÇÃO: Atualizar relógio com intervalo otimizado
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 1000);
+    }, 60000); // ⚡ Atualizar a cada minuto em vez de a cada segundo
+    
     return () => clearInterval(timer);
   }, []);
 
-  // Calcular estatísticas em tempo real
-  useEffect(() => {
+  // ⚡ OTIMIZAÇÃO: Calcular métricas com useMemo para evitar recálculos
+  const dashboardMetrics = useMemo(() => {
+    console.log('🔄 Recalculando métricas do dashboard...');
+    
     const today = new Date().toISOString().split('T')[0];
     
-    const todayInvoices = invoices.filter(inv => 
+    // Faturas corrigidas com status real
+    const correctedInvoices = invoices.map(invoice => ({
+      ...invoice,
+      actualStatus: invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0 
+        ? 'overdue' 
+        : invoice.status
+    }));
+
+    const todayInvoices = correctedInvoices.filter(inv => 
       inv.generationDate?.includes && inv.generationDate.includes(today)
     ).length;
 
-    const pendingAmount = invoices
-      .filter(inv => inv.status === 'pending')
+    const pendingAmount = correctedInvoices
+      .filter(inv => inv.actualStatus === 'pending')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
-    const overdueCount = invoices.filter(inv => inv.status === 'overdue').length;
+    const overdueCount = correctedInvoices.filter(inv => inv.actualStatus === 'overdue').length;
+    const overdueAmount = correctedInvoices
+      .filter(inv => inv.actualStatus === 'overdue')
+      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
-    // Atividade recente (últimas 5 ações)
+    const totalRevenue = correctedInvoices
+      .filter(inv => inv.actualStatus === 'paid')
+      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+
+    const paymentRate = correctedInvoices.length > 0 
+      ? (correctedInvoices.filter(inv => inv.actualStatus === 'paid').length / correctedInvoices.length * 100)
+      : 0;
+
+    // Atividade recente (últimas ações)
     const recentActivity = [
-      ...invoices.slice(0, 3).map(inv => ({
+      ...correctedInvoices.slice(0, 3).map(inv => ({
         id: inv.id,
         type: 'invoice',
-        message: `Fatura de ${formatCurrency(inv.amount)} criada`,
-        time: inv.generationDate,
-        status: inv.status
+        message: `Fatura de ${formatCurrency(inv.amount)} - ${inv.actualStatus}`,
+        time: inv.generationDate || inv.createdAt,
+        status: inv.actualStatus,
+        client: clients.find(c => c.id === inv.clientId)?.name || 'Cliente não encontrado'
       })),
       ...clients.slice(0, 2).map(client => ({
         id: client.id,
         type: 'client',
         message: `Cliente ${client.name} cadastrado`,
         time: client.createdAt,
-        status: 'active'
+        status: 'active',
+        client: client.name
       }))
-    ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5);
+    ].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0)).slice(0, 5);
 
-    setDashboardStats({ todayInvoices, pendingAmount, overdueCount, recentActivity });
+    return {
+      todayInvoices,
+      pendingAmount,
+      overdueCount,
+      overdueAmount,
+      totalRevenue,
+      paymentRate,
+      totalClients: clients.length,
+      activeSubscriptions: subscriptions.filter(sub => sub.status === 'active').length,
+      correctedInvoices,
+      recentActivity
+    };
+  }, [invoices, clients, subscriptions]);
 
-    // Sistema de notificações inteligentes
+  // ⚡ OTIMIZAÇÃO: Estatísticas de recorrência memoizadas
+  const recurrenceStats = useMemo(() => {
+    const stats = {
+      daily: { count: 0, revenue: 0, color: 'bg-blue-500' },
+      weekly: { count: 0, revenue: 0, color: 'bg-green-500' },
+      monthly: { count: 0, revenue: 0, color: 'bg-orange-500' },
+      custom: { count: 0, revenue: 0, color: 'bg-purple-500' }
+    };
+
+    subscriptions.forEach(sub => {
+      if (sub.status === 'active' && stats[sub.recurrenceType]) {
+        stats[sub.recurrenceType].count++;
+        stats[sub.recurrenceType].revenue += parseFloat(sub.amount || 0);
+      }
+    });
+
+    return stats;
+  }, [subscriptions]);
+
+  // ⚡ OTIMIZAÇÃO: Sistema de notificações inteligentes
+  useEffect(() => {
     const newNotifications = [];
     
-    if (overdueCount > 0) {
+    if (dashboardMetrics.overdueCount > 0) {
       newNotifications.push({
         id: 'overdue',
-        type: 'warning',
+        type: 'error',
         title: 'Faturas Vencidas',
-        message: `${overdueCount} faturas precisam de atenção`,
-        action: 'view_overdue'
+        message: `${dashboardMetrics.overdueCount} faturas precisam de atenção urgente`,
+        action: 'view_overdue',
+        priority: 'high'
       });
     }
 
-    if (pendingAmount > 1000) {
+    if (dashboardMetrics.pendingAmount > 1000) {
       newNotifications.push({
         id: 'pending',
-        type: 'info',
+        type: 'warning',
         title: 'Alto Valor Pendente',
-        message: `${formatCurrency(pendingAmount)} em faturas pendentes`,
-        action: 'send_reminders'
+        message: `${formatCurrency(dashboardMetrics.pendingAmount)} em faturas pendentes`,
+        action: 'send_reminders',
+        priority: 'medium'
+      });
+    }
+
+    if (dashboardMetrics.paymentRate < 70 && dashboardMetrics.correctedInvoices.length > 5) {
+      newNotifications.push({
+        id: 'low_payment_rate',
+        type: 'warning',
+        title: 'Taxa de Pagamento Baixa',
+        message: `Apenas ${dashboardMetrics.paymentRate.toFixed(1)}% das faturas foram pagas`,
+        action: 'review_strategy',
+        priority: 'medium'
       });
     }
 
     setNotifications(newNotifications);
-  }, [invoices, clients]);
+  }, [dashboardMetrics]);
 
-  // Handlers para ações
-  const handleCreateExampleData = async () => {
+  // ⚡ OTIMIZAÇÃO: Handlers otimizados com useCallback
+  const handleCreateExampleData = useCallback(async () => {
     try {
-      setQuickActions(prev => ({ ...prev, generateInvoices: true }));
+      setQuickActions(prev => ({ ...prev, createExample: true }));
       await createExampleData();
       showNotification('success', '🎉 Dados criados!', 'Exemplos com diferentes recorrências foram adicionados');
     } catch (error) {
       console.error('Erro ao criar dados de exemplo:', error);
       showNotification('error', '❌ Erro', error.message);
     } finally {
-      setQuickActions(prev => ({ ...prev, generateInvoices: false }));
+      setQuickActions(prev => ({ ...prev, createExample: false }));
     }
-  };
+  }, [createExampleData]);
 
-  const handleGenerateInvoices = async () => {
+  const handleGenerateInvoices = useCallback(async () => {
     try {
       setQuickActions(prev => ({ ...prev, generateInvoices: true }));
       const count = await generateInvoices();
+      
       if (count > 0) {
         showNotification('success', '🚀 Faturas geradas!', `${count} novas faturas baseadas nas recorrências`);
       } else {
@@ -130,184 +196,195 @@ const Dashboard = ({ onNavigate }) => {
     } finally {
       setQuickActions(prev => ({ ...prev, generateInvoices: false }));
     }
-  };
+  }, [generateInvoices]);
 
-  const showNotification = (type, title, message) => {
-    // Sistema de toast seria implementado aqui
-    alert(`${title}\n${message}`);
-  };
+  // ⚡ OTIMIZAÇÃO: Sistema de notificação simples
+  const showNotification = useCallback((type, title, message) => {
+    // Por enquanto usar alert simples - pode ser substituído por toast
+    const icons = {
+      success: '✅',
+      error: '❌',
+      warning: '⚠️',
+      info: 'ℹ️'
+    };
+    alert(`${icons[type]} ${title}\n${message}`);
+  }, []);
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value || 0);
-  };
-
-  const getGreeting = () => {
+  // ⚡ OTIMIZAÇÃO: Função de saudação otimizada
+  const getGreeting = useCallback(() => {
     const hour = currentTime.getHours();
     if (hour < 12) return '🌅 Bom dia';
     if (hour < 18) return '☀️ Boa tarde';
     return '🌙 Boa noite';
-  };
+  }, [currentTime]);
 
-  const getRecurrenceStats = () => {
-    const stats = {
-      daily: { count: 0, revenue: 0, color: 'bg-blue-500' },
-      weekly: { count: 0, revenue: 0, color: 'bg-green-500' },
-      monthly: { count: 0, revenue: 0, color: 'bg-orange-500' },
-      custom: { count: 0, revenue: 0, color: 'bg-purple-500' }
-    };
-
-    subscriptions.forEach(sub => {
-      if (sub.status === 'active') {
-        const type = sub.recurrenceType || 'monthly';
-        if (stats[type]) {
-          stats[type].count++;
-          stats[type].revenue += parseFloat(sub.amount || 0);
-        }
-      }
-    });
-
-    return stats;
-  };
-
+  // ⚡ OTIMIZAÇÃO: Loading otimizado com skeleton
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="large" />
-          <p className="mt-4 text-gray-600 animate-pulse">Carregando seu dashboard...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+        <div className="dashboard-container">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="bg-white p-6 rounded-2xl shadow-lg border">
+                  <div className="h-12 bg-gray-200 rounded-full w-12 mb-4"></div>
+                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-lg border p-6">
+              <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-4 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="text-center mt-8">
+            <LoadingSpinner size="large" />
+            <p className="mt-4 text-gray-600 animate-pulse">Carregando dashboard otimizado...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  const recurrenceStats = getRecurrenceStats();
-  const totalActiveSubscriptions = subscriptions.filter(sub => sub.status === 'active').length;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-orange-50">
       <div className="dashboard-container">
         
-        {/* Header Avançado */}
+        {/* Header Otimizado */}
         <div className="dashboard-header mb-8">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
             
-            {/* Saudação e Informações */}
+            {/* Saudação Otimizada */}
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex flex-col">
                   <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                     {getGreeting()}
-                    <span className="animate-pulse">👋</span>
+                    <span className={showAnimations ? "animate-pulse" : ""}>👋</span>
                   </h1>
                   <p className="text-gray-600 text-lg">
-                    Sistema de Cobranças com Recorrências Inteligentes
+                    Sistema de Cobranças Otimizado v2.0
                   </p>
                 </div>
               </div>
               
-              {/* Status Bar */}
+              {/* Status Bar Otimizado */}
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   Sistema Online
                 </div>
                 <div className="text-gray-500">
-                  Última atualização: {currentTime.toLocaleString('pt-BR')}
+                  Última atualização: {currentTime.toLocaleTimeString('pt-BR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
+                <div className="text-gray-500">
+                  Performance: ⚡ Otimizado
                 </div>
               </div>
             </div>
             
-            {/* Relógio e Ações */}
-            <div className="flex items-center gap-6">
+            {/* Ações Rápidas Otimizadas */}
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleCreateExampleData}
+                disabled={quickActions.createExample || clients.length > 0}
+                className="btn-success px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Criar dados de exemplo com diferentes tipos de recorrência"
+              >
+                {quickActions.createExample ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    <span className="ml-2 hidden sm:inline">Criando...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                    <span className="hidden sm:inline">
+                      {clients.length > 0 ? 'Dados Existem' : 'Dados Exemplo'}
+                    </span>
+                  </>
+                )}
+              </button>
               
-              {/* Ações Rápidas */}
-              <div className="flex gap-3">
-                <button 
-                  onClick={handleCreateExampleData}
-                  disabled={quickActions.generateInvoices}
-                  className="btn-success px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Criar dados de exemplo com diferentes tipos de recorrência"
-                >
-                  {quickActions.generateInvoices ? (
-                    <>
-                      <LoadingSpinner size="small" />
-                      <span className="ml-2 hidden sm:inline">Criando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                      </svg>
-                      <span className="hidden sm:inline">Dados Exemplo</span>
-                    </>
-                  )}
-                </button>
-                
-                <button 
-                  onClick={handleGenerateInvoices}
-                  disabled={quickActions.generateInvoices}
-                  className="btn-primary px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Gerar faturas baseadas nas configurações de recorrência"
-                >
-                  {quickActions.generateInvoices ? (
-                    <>
-                      <LoadingSpinner size="small" />
-                      <span className="ml-2 hidden sm:inline">Gerando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="hidden sm:inline">Gerar Faturas</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <button 
+                onClick={handleGenerateInvoices}
+                disabled={quickActions.generateInvoices}
+                className="btn-primary px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Gerar faturas baseadas nas configurações de recorrência"
+              >
+                {quickActions.generateInvoices ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    <span className="ml-2 hidden sm:inline">Gerando...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 sm:mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="hidden sm:inline">Gerar Faturas</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Notificações Inteligentes */}
+        {/* Sistema de Notificações Otimizado */}
         {notifications.length > 0 && (
           <div className="mb-8 space-y-3">
-            {notifications.map(notification => (
-              <div key={notification.id} className={`p-4 rounded-xl border-l-4 ${
-                notification.type === 'warning' 
-                  ? 'bg-yellow-50 border-yellow-400 text-yellow-800' 
+            {notifications.slice(0, 3).map(notification => (
+              <div key={notification.id} className={`p-4 rounded-xl border-l-4 shadow-sm hover:shadow-md transition-shadow duration-200 ${
+                notification.type === 'error'
+                  ? 'bg-red-50 border-red-400 text-red-800' 
+                  : notification.type === 'warning'
+                  ? 'bg-yellow-50 border-yellow-400 text-yellow-800'
                   : 'bg-blue-50 border-blue-400 text-blue-800'
-              } shadow-sm hover:shadow-md transition-shadow duration-200`}>
+              }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${
+                      notification.type === 'error' ? 'bg-red-400' : 
                       notification.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-400'
-                    } animate-pulse`}></div>
+                    }`}></div>
                     <div>
                       <h4 className="font-medium">{notification.title}</h4>
                       <p className="text-sm opacity-90">{notification.message}</p>
                     </div>
                   </div>
-                  <button className="text-xs font-medium px-3 py-1 rounded-lg bg-white/50 hover:bg-white/80 transition-colors">
+                  <div className="text-xs font-medium px-3 py-1 rounded-lg bg-white/50 hover:bg-white/80 transition-colors cursor-pointer">
                     Ver Detalhes
-                  </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Estatísticas em Tempo Real */}
-        {(clients.length > 0 || subscriptions.length > 0) && (
+        {/* Métricas em Tempo Real Otimizadas */}
+        {dashboardMetrics.totalClients > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <span className="text-2xl">📊</span>
-                Estatísticas em Tempo Real
+                Métricas em Tempo Real
               </h3>
-              
+            
               {/* Filtro de Período */}
               <div className="flex bg-white rounded-lg p-1 shadow-sm border">
                 {[
@@ -334,31 +411,31 @@ const Dashboard = ({ onNavigate }) => {
               {[
                 {
                   title: 'Faturas Hoje',
-                  value: dashboardStats.todayInvoices,
+                  value: dashboardMetrics.todayInvoices,
                   icon: '📄',
                   color: 'blue',
                   trend: '+12%'
                 },
                 {
                   title: 'Valor Pendente',
-                  value: formatCurrency(dashboardStats.pendingAmount),
+                  value: formatCurrency(dashboardMetrics.pendingAmount),
                   icon: '⏳',
                   color: 'yellow',
-                  trend: '-5%'
+                  trend: dashboardMetrics.pendingAmount > 0 ? '+' : '='
                 },
                 {
                   title: 'Vencidas',
-                  value: dashboardStats.overdueCount,
+                  value: dashboardMetrics.overdueCount,
                   icon: '⚠️',
                   color: 'red',
-                  trend: '+2'
+                  trend: dashboardMetrics.overdueCount > 0 ? `+${dashboardMetrics.overdueCount}` : '0'
                 },
                 {
-                  title: 'Clientes Ativos',
-                  value: clients.length,
-                  icon: '👥',
+                  title: 'Taxa Pagamento',
+                  value: `${dashboardMetrics.paymentRate.toFixed(1)}%`,
+                  icon: '📈',
                   color: 'green',
-                  trend: '+8%'
+                  trend: dashboardMetrics.paymentRate >= 80 ? '↗' : dashboardMetrics.paymentRate >= 50 ? '→' : '↘'
                 }
               ].map((stat, index) => (
                 <div key={index} className={`bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transform hover:scale-105 transition-all duration-300 ${showAnimations ? 'animate-fade-in-up' : ''}`}>
@@ -367,13 +444,16 @@ const Dashboard = ({ onNavigate }) => {
                       {stat.icon}
                     </div>
                     <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      stat.trend.startsWith('+') 
+                      stat.trend.includes('↗') || stat.trend.includes('+') 
                         ? 'bg-green-100 text-green-700' 
-                        : 'bg-red-100 text-red-700'
+                        : stat.trend.includes('↘')
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-700'
                     }`}>
                       {stat.trend}
                     </div>
                   </div>
+                  
                   <div className="text-2xl font-bold text-gray-900 mb-1">
                     {stat.value}
                   </div>
@@ -384,7 +464,7 @@ const Dashboard = ({ onNavigate }) => {
                   {/* Mini Progress Bar */}
                   <div className="mt-3 w-full bg-gray-200 rounded-full h-1.5">
                     <div className={`bg-${stat.color}-500 h-1.5 rounded-full transition-all duration-1000`} 
-                         style={{ width: `${Math.random() * 100}%` }}></div>
+                         style={{ width: `${Math.min(Math.random() * 100, 100)}%` }}></div>
                   </div>
                 </div>
               ))}
@@ -392,8 +472,8 @@ const Dashboard = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Cards de Recorrência Premium */}
-        {totalActiveSubscriptions > 0 && (
+        {/* Cards de Recorrência Otimizados */}
+        {dashboardMetrics.activeSubscriptions > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -401,7 +481,7 @@ const Dashboard = ({ onNavigate }) => {
                 Assinaturas por Tipo de Recorrência
               </h3>
               <div className="text-sm text-gray-600 bg-white px-3 py-1 rounded-lg border">
-                Total: {totalActiveSubscriptions} ativas
+                Total: {dashboardMetrics.activeSubscriptions} ativas
               </div>
             </div>
             
@@ -445,7 +525,7 @@ const Dashboard = ({ onNavigate }) => {
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className={`h-2 rounded-full transition-all duration-1000 ${data.color}`}
-                          style={{ width: `${totalActiveSubscriptions > 0 ? (data.count / totalActiveSubscriptions) * 100 : 0}%` }}
+                          style={{ width: `${dashboardMetrics.activeSubscriptions > 0 ? (data.count / dashboardMetrics.activeSubscriptions) * 100 : 0}%` }}
                         ></div>
                       </div>
                     </div>
@@ -460,7 +540,7 @@ const Dashboard = ({ onNavigate }) => {
         {(clients.length > 0 && invoices.length > 0) && (
           <div className="mb-8">
             <WhatsAppQuickActions 
-              invoices={invoices}
+              invoices={dashboardMetrics.correctedInvoices}
               clients={clients}
               subscriptions={subscriptions}
               onNavigate={onNavigate} 
@@ -469,7 +549,7 @@ const Dashboard = ({ onNavigate }) => {
         )}
 
         {/* Atividade Recente */}
-        {dashboardStats.recentActivity.length > 0 && (
+        {dashboardMetrics.recentActivity.length > 0 && (
           <div className="mb-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
               <span className="text-2xl">🕐</span>
@@ -478,12 +558,16 @@ const Dashboard = ({ onNavigate }) => {
             
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
               <div className="divide-y divide-gray-100">
-                {dashboardStats.recentActivity.map((activity, index) => (
-                  <div key={activity.id} className="p-4 hover:bg-gray-50 transition-colors duration-200">
+                {dashboardMetrics.recentActivity.map((activity, index) => (
+                  <div key={`${activity.id}-${index}`} className="p-4 hover:bg-gray-50 transition-colors duration-200">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm ${
                         activity.type === 'invoice' 
-                          ? 'bg-blue-100 text-blue-600' 
+                          ? activity.status === 'paid'
+                            ? 'bg-green-100 text-green-600' 
+                            : activity.status === 'overdue'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-blue-100 text-blue-600'
                           : 'bg-green-100 text-green-600'
                       }`}>
                         {activity.type === 'invoice' ? '📄' : '👤'}
@@ -494,18 +578,21 @@ const Dashboard = ({ onNavigate }) => {
                           {activity.message}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {new Date(activity.time).toLocaleString('pt-BR')}
+                          {activity.time ? new Date(activity.time).toLocaleString('pt-BR') : 'Data não disponível'}
                         </p>
                       </div>
                       
                       <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                         activity.status === 'paid' 
                           ? 'bg-green-100 text-green-700'
+                          : activity.status === 'overdue'
+                          ? 'bg-red-100 text-red-700'
                           : activity.status === 'pending'
                           ? 'bg-yellow-100 text-yellow-700'
                           : 'bg-blue-100 text-blue-700'
                       }`}>
                         {activity.status === 'paid' ? 'Pago' : 
+                         activity.status === 'overdue' ? 'Vencida' : 
                          activity.status === 'pending' ? 'Pendente' : 
                          'Ativo'}
                       </div>
@@ -516,12 +603,9 @@ const Dashboard = ({ onNavigate }) => {
             </div>
           </div>
         )}
-
-        {/* KPI Cards Existentes */}
-        <KPICards invoices={invoices} clients={clients} />
         
         {/* Tabela de Faturas */}
-        <InvoiceTable invoices={invoices} clients={clients} />
+        <InvoiceTable invoices={dashboardMetrics.correctedInvoices} clients={clients} />
 
         {/* Sistema de Automação Status */}
         {subscriptions.length > 0 && (
@@ -651,10 +735,10 @@ const Dashboard = ({ onNavigate }) => {
               
               <button 
                 onClick={handleCreateExampleData}
-                disabled={quickActions.generateInvoices}
+                disabled={quickActions.createExample}
                 className="btn-primary px-8 py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {quickActions.generateInvoices ? (
+                {quickActions.createExample ? (
                   <div className="flex items-center">
                     <LoadingSpinner size="small" />
                     <span className="ml-2">Criando dados...</span>

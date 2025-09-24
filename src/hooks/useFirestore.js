@@ -1,10 +1,15 @@
-// src/hooks/useFirestore.js - VERSÃO TOTALMENTE CORRIGIDA
-import { useState, useEffect, useCallback } from 'react';
+// src/hooks/useFirestore.js - VERSÃO SUPER OTIMIZADA
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFirebaseAuth } from './useFirebaseAuth';
 import { clientService, subscriptionService, invoiceService } from '../services/firestore';
 
 export const useFirestore = () => {
   const { user } = useFirebaseAuth();
+  
+  // ⚡ OTIMIZAÇÃO: Usar refs para evitar re-renders desnecessários
+  const isInitializedRef = useRef(false);
+  const unsubscribersRef = useRef([]);
+  const loadingTimeoutRef = useRef(null);
   
   // Estados principais
   const [clients, setClients] = useState([]);
@@ -13,102 +18,145 @@ export const useFirestore = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Carregamento inicial de dados
-  useEffect(() => {
-    let unsubscribeClients = null;
-    let unsubscribeSubscriptions = null;
-    let unsubscribeInvoices = null;
-
-    if (user) {
-      console.log('👤 Usuário logado, configurando listeners...', user.email);
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Configurar listeners em tempo real
-        unsubscribeClients = clientService.subscribe((clientsData) => {
-          console.log('📊 Clientes recebidos:', clientsData.length);
-          setClients(clientsData || []);
-        });
-
-        unsubscribeSubscriptions = subscriptionService.subscribe((subscriptionsData) => {
-          console.log('📊 Assinaturas recebidas:', subscriptionsData.length);
-          setSubscriptions(subscriptionsData || []);
-        });
-
-        unsubscribeInvoices = invoiceService.subscribe((invoicesData) => {
-          console.log('📊 Faturas recebidas:', invoicesData.length);
-          setInvoices(invoicesData || []);
-        });
-
-        // Definir loading como false após um tempo
-        const loadingTimeout = setTimeout(() => {
-          setLoading(false);
-        }, 3000);
-
-        return () => clearTimeout(loadingTimeout);
-
-      } catch (err) {
-        console.error('❌ Erro ao configurar listeners:', err);
-        setError(err.message);
-        setLoading(false);
-      }
+  // ⚡ OTIMIZAÇÃO: Debounced loading para evitar flickers
+  const setLoadingWithDelay = useCallback((isLoading, delay = 0) => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    
+    if (delay > 0) {
+      loadingTimeoutRef.current = setTimeout(() => {
+        setLoading(isLoading);
+      }, delay);
     } else {
-      console.log('🚪 Usuário não logado, limpando dados...');
+      setLoading(isLoading);
+    }
+  }, []);
+
+  // ⚡ OTIMIZAÇÃO: Cleanup otimizado
+  const cleanupListeners = useCallback(() => {
+    console.log('🧹 Limpando listeners otimizado...');
+    
+    unsubscribersRef.current.forEach(unsubscriber => {
+      if (typeof unsubscriber === 'function') {
+        try {
+          unsubscriber();
+        } catch (error) {
+          console.warn('⚠️ Aviso no cleanup:', error);
+        }
+      }
+    });
+    
+    unsubscribersRef.current = [];
+    isInitializedRef.current = false;
+    
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+  }, []);
+
+  // ⚡ OTIMIZAÇÃO: Setup listeners uma única vez
+  const setupListeners = useCallback(async () => {
+    // Evitar múltiplas inicializações
+    if (!user || isInitializedRef.current) {
+      console.log('⚡ Setup ignorado - já inicializado ou sem usuário');
+      return;
+    }
+
+    console.log('🚀 Configurando listeners OTIMIZADO para:', user.email);
+    isInitializedRef.current = true;
+    setLoadingWithDelay(true);
+    setError(null);
+
+    // Limpar listeners anteriores primeiro
+    cleanupListeners();
+
+    try {
+      // ⚡ OTIMIZAÇÃO: Setup em paralelo com Promise.all
+      const setupPromises = [];
+      
+      // Clientes
+      setupPromises.push(new Promise((resolve) => {
+        const unsubscribe = clientService.subscribe((clientsData) => {
+          console.log('📊 Clientes recebidos:', clientsData?.length || 0);
+          setClients(clientsData || []);
+          resolve(unsubscribe);
+        });
+      }));
+
+      // Assinaturas
+      setupPromises.push(new Promise((resolve) => {
+        const unsubscribe = subscriptionService.subscribe((subscriptionsData) => {
+          console.log('🔄 Assinaturas recebidas:', subscriptionsData?.length || 0);
+          setSubscriptions(subscriptionsData || []);
+          resolve(unsubscribe);
+        });
+      }));
+
+      // Faturas
+      setupPromises.push(new Promise((resolve) => {
+        const unsubscribe = invoiceService.subscribe((invoicesData) => {
+          console.log('📋 Faturas recebidas:', invoicesData?.length || 0);
+          setInvoices(invoicesData || []);
+          resolve(unsubscribe);
+        });
+      }));
+
+      // ⚡ OTIMIZAÇÃO: Aguardar todos os listeners em paralelo
+      const unsubscribers = await Promise.all(setupPromises);
+      unsubscribersRef.current = unsubscribers;
+
+      // ⚡ OTIMIZAÇÃO: Loading com delay mínimo para UX suave
+      setLoadingWithDelay(false, 500);
+      console.log('✅ Todos os listeners configurados com sucesso!');
+
+    } catch (error) {
+      console.error('❌ Erro ao configurar listeners:', error);
+      setError(error.message);
+      setLoadingWithDelay(false);
+    }
+  }, [user, cleanupListeners, setLoadingWithDelay]);
+
+  // ⚡ OTIMIZAÇÃO: Effect com cleanup robusto
+  useEffect(() => {
+    if (user) {
+      setupListeners();
+    } else {
+      console.log('🚪 Usuário deslogado - limpando dados...');
+      cleanupListeners();
       setClients([]);
       setSubscriptions([]);
       setInvoices([]);
-      setLoading(false);
+      setLoadingWithDelay(false);
       setError(null);
     }
 
-    // Cleanup function
+    // Cleanup na desmontagem do componente
     return () => {
-      console.log('🧹 Limpando listeners...');
-      if (unsubscribeClients) {
-        try {
-          unsubscribeClients();
-        } catch (error) {
-          console.warn('Erro ao limpar listener de clientes:', error);
-        }
-      }
-      if (unsubscribeSubscriptions) {
-        try {
-          unsubscribeSubscriptions();
-        } catch (error) {
-          console.warn('Erro ao limpar listener de assinaturas:', error);
-        }
-      }
-      if (unsubscribeInvoices) {
-        try {
-          unsubscribeInvoices();
-        } catch (error) {
-          console.warn('Erro ao limpar listener de faturas:', error);
-        }
-      }
+      cleanupListeners();
     };
-  }, [user]);
+  }, [user, setupListeners, cleanupListeners, setLoadingWithDelay]);
 
-  // ===== OPERAÇÕES DE CLIENTES =====
+  // ===== OPERAÇÕES OTIMIZADAS DE CLIENTES =====
   const createClient = useCallback(async (clientData) => {
     if (!user) {
       throw new Error('Usuário não autenticado');
     }
 
-    if (!clientData?.name || !clientData?.email) {
+    if (!clientData?.name?.trim() || !clientData?.email?.trim()) {
       throw new Error('Nome e email são obrigatórios');
     }
 
     try {
-      console.log('🔄 Criando cliente:', clientData);
+      console.log('🔄 Criando cliente:', clientData.name);
       
       const result = await clientService.create(clientData);
       
       if (result.success) {
-        console.log('✅ Cliente criado com sucesso:', result.id);
+        console.log('✅ Cliente criado:', result.id);
         return result.id;
       } else {
-        console.error('❌ Erro ao criar cliente:', result.error);
         throw new Error(result.error || 'Erro ao criar cliente');
       }
     } catch (error) {
@@ -120,27 +168,22 @@ export const useFirestore = () => {
 
   const updateClient = useCallback(async (clientId, clientData) => {
     if (!user || !clientId) {
-      throw new Error('Parâmetros inválidos para atualizar cliente');
-    }
-
-    if (!clientData?.name || !clientData?.email) {
-      throw new Error('Nome e email são obrigatórios');
+      throw new Error('Parâmetros inválidos');
     }
 
     try {
-      console.log('🔄 Atualizando cliente:', clientId, clientData);
+      console.log('🔄 Atualizando cliente:', clientId);
       
       const result = await clientService.update(clientId, clientData);
       
       if (result.success) {
-        console.log('✅ Cliente atualizado com sucesso:', clientId);
+        console.log('✅ Cliente atualizado:', clientId);
         return true;
       } else {
-        console.error('❌ Erro ao atualizar cliente:', result.error);
         throw new Error(result.error || 'Erro ao atualizar cliente');
       }
     } catch (error) {
-      console.error('❌ Erro na atualização do cliente:', error);
+      console.error('❌ Erro na atualização:', error);
       setError(error.message);
       throw error;
     }
@@ -148,48 +191,46 @@ export const useFirestore = () => {
 
   const deleteClient = useCallback(async (clientId) => {
     if (!user || !clientId) {
-      throw new Error('Parâmetros inválidos para deletar cliente');
+      throw new Error('Parâmetros inválidos');
     }
 
     try {
-      console.log('🔄 Deletando cliente:', clientId);
+      console.log('🗑️ Deletando cliente:', clientId);
       
       const result = await clientService.delete(clientId);
       
       if (result.success) {
-        console.log('✅ Cliente deletado com sucesso:', clientId);
+        console.log('✅ Cliente deletado:', clientId);
         return true;
       } else {
-        console.error('❌ Erro ao deletar cliente:', result.error);
         throw new Error(result.error || 'Erro ao deletar cliente');
       }
     } catch (error) {
-      console.error('❌ Erro ao deletar cliente:', error);
+      console.error('❌ Erro ao deletar:', error);
       setError(error.message);
       throw error;
     }
   }, [user]);
 
-  // ===== OPERAÇÕES DE ASSINATURAS =====
+  // ===== OPERAÇÕES OTIMIZADAS DE ASSINATURAS =====
   const createSubscription = useCallback(async (subscriptionData) => {
     if (!user) {
       throw new Error('Usuário não autenticado');
     }
 
-    if (!subscriptionData?.name || !subscriptionData?.amount || !subscriptionData?.clientId) {
+    if (!subscriptionData?.name?.trim() || !subscriptionData?.amount || !subscriptionData?.clientId) {
       throw new Error('Nome, valor e cliente são obrigatórios');
     }
 
     try {
-      console.log('🔄 Criando assinatura:', subscriptionData);
+      console.log('🔄 Criando assinatura:', subscriptionData.name);
       
       const result = await subscriptionService.create(subscriptionData);
       
       if (result.success) {
-        console.log('✅ Assinatura criada com sucesso:', result.id);
+        console.log('✅ Assinatura criada:', result.id);
         return result.id;
       } else {
-        console.error('❌ Erro ao criar assinatura:', result.error);
         throw new Error(result.error || 'Erro ao criar assinatura');
       }
     } catch (error) {
@@ -201,23 +242,18 @@ export const useFirestore = () => {
 
   const updateSubscription = useCallback(async (subscriptionId, subscriptionData) => {
     if (!user || !subscriptionId) {
-      throw new Error('Parâmetros inválidos para atualizar assinatura');
-    }
-
-    if (!subscriptionData?.name || !subscriptionData?.amount) {
-      throw new Error('Nome e valor são obrigatórios');
+      throw new Error('Parâmetros inválidos');
     }
 
     try {
-      console.log('🔄 Atualizando assinatura:', subscriptionId, subscriptionData);
+      console.log('🔄 Atualizando assinatura:', subscriptionId);
       
       const result = await subscriptionService.update(subscriptionId, subscriptionData);
       
       if (result.success) {
-        console.log('✅ Assinatura atualizada com sucesso:', subscriptionId);
+        console.log('✅ Assinatura atualizada:', subscriptionId);
         return true;
       } else {
-        console.error('❌ Erro ao atualizar assinatura:', result.error);
         throw new Error(result.error || 'Erro ao atualizar assinatura');
       }
     } catch (error) {
@@ -229,19 +265,18 @@ export const useFirestore = () => {
 
   const deleteSubscription = useCallback(async (subscriptionId) => {
     if (!user || !subscriptionId) {
-      throw new Error('Parâmetros inválidos para deletar assinatura');
+      throw new Error('Parâmetros inválidos');
     }
 
     try {
-      console.log('🔄 Deletando assinatura:', subscriptionId);
+      console.log('🗑️ Deletando assinatura:', subscriptionId);
       
       const result = await subscriptionService.delete(subscriptionId);
       
       if (result.success) {
-        console.log('✅ Assinatura deletada com sucesso:', subscriptionId);
+        console.log('✅ Assinatura deletada:', subscriptionId);
         return true;
       } else {
-        console.error('❌ Erro ao deletar assinatura:', result.error);
         throw new Error(result.error || 'Erro ao deletar assinatura');
       }
     } catch (error) {
@@ -251,22 +286,21 @@ export const useFirestore = () => {
     }
   }, [user]);
 
-  // ===== OPERAÇÕES DE FATURAS =====
+  // ===== OPERAÇÕES OTIMIZADAS DE FATURAS =====
   const updateInvoice = useCallback(async (invoiceId, invoiceData) => {
     if (!user || !invoiceId) {
-      throw new Error('Parâmetros inválidos para atualizar fatura');
+      throw new Error('Parâmetros inválidos');
     }
 
     try {
-      console.log('🔄 Atualizando fatura:', invoiceId, invoiceData);
+      console.log('🔄 Atualizando fatura:', invoiceId);
       
       const result = await invoiceService.update(invoiceId, invoiceData);
       
       if (result.success) {
-        console.log('✅ Fatura atualizada com sucesso:', invoiceId);
+        console.log('✅ Fatura atualizada:', invoiceId);
         return true;
       } else {
-        console.error('❌ Erro ao atualizar fatura:', result.error);
         throw new Error(result.error || 'Erro ao atualizar fatura');
       }
     } catch (error) {
@@ -282,36 +316,47 @@ export const useFirestore = () => {
     }
 
     try {
-      console.log('🔄 Gerando faturas das assinaturas ativas...');
+      console.log('🚀 Gerando faturas das assinaturas ativas...');
+      
+      // ⚡ OTIMIZAÇÃO: Mostrar loading apenas para operações longas
+      if (subscriptions.length > 10) {
+        setLoadingWithDelay(true);
+      }
       
       const count = await invoiceService.generateFromSubscriptions();
       
-      console.log(`✅ ${count} faturas geradas com sucesso!`);
+      console.log(`✅ ${count} faturas geradas!`);
+      
+      if (subscriptions.length > 10) {
+        setLoadingWithDelay(false, 500);
+      }
+      
       return count;
     } catch (error) {
       console.error('❌ Erro ao gerar faturas:', error);
+      setLoadingWithDelay(false);
       setError(error.message);
       throw error;
     }
-  }, [user]);
+  }, [user, subscriptions.length, setLoadingWithDelay]);
 
-  // ===== FUNÇÃO PARA CRIAR DADOS DE EXEMPLO =====
+  // ===== FUNÇÃO OTIMIZADA PARA CRIAR DADOS DE EXEMPLO =====
   const createExampleData = useCallback(async () => {
     if (!user) {
       throw new Error('Usuário não autenticado');
     }
 
     try {
-      console.log('🔄 Criando dados de exemplo...');
+      console.log('🎯 Criando dados de exemplo...');
       
-      // Verificar se já existem clientes
+      // Verificar se já existem dados
       if (clients.length > 0) {
-        throw new Error('Já existem clientes cadastrados. Limpe os dados primeiro.');
+        throw new Error('Já existem clientes cadastrados');
       }
 
-      setLoading(true);
+      setLoadingWithDelay(true);
 
-      // Clientes de exemplo
+      // ⚡ OTIMIZAÇÃO: Dados de exemplo mais compactos
       const exampleClients = [
         {
           name: 'Ana Silva',
@@ -336,7 +381,7 @@ export const useFirestore = () => {
         }
       ];
 
-      // Criar clientes primeiro
+      // Criar clientes sequencialmente para evitar race conditions
       const createdClients = [];
       for (const clientData of exampleClients) {
         try {
@@ -344,16 +389,15 @@ export const useFirestore = () => {
           createdClients.push({ ...clientData, id: clientId });
           console.log('✅ Cliente exemplo criado:', clientData.name);
         } catch (error) {
-          console.error('❌ Erro ao criar cliente exemplo:', clientData.name, error);
+          console.error('❌ Erro ao criar cliente exemplo:', error);
         }
       }
 
-      // Aguardar um pouco para sincronização
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // ⚡ OTIMIZAÇÃO: Aguardar sincronização
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Criar assinaturas para os clientes
+      // Criar assinaturas
       const today = new Date().toISOString().split('T')[0];
-      
       const exampleSubscriptions = [
         {
           clientId: createdClients[0]?.id,
@@ -392,7 +436,7 @@ export const useFirestore = () => {
             await createSubscription(subData);
             console.log('✅ Assinatura exemplo criada:', subData.name);
           } catch (error) {
-            console.error('❌ Erro ao criar assinatura exemplo:', subData.name, error);
+            console.error('❌ Erro ao criar assinatura exemplo:', error);
           }
         }
       }
@@ -401,91 +445,65 @@ export const useFirestore = () => {
       try {
         await generateInvoices();
       } catch (error) {
-        console.warn('⚠️ Erro ao gerar faturas exemplo:', error);
+        console.warn('⚠️ Aviso ao gerar faturas exemplo:', error);
       }
 
-      setLoading(false);
+      setLoadingWithDelay(false, 500);
       console.log('🎉 Dados de exemplo criados com sucesso!');
       
-      return { success: true, message: 'Dados de exemplo criados com sucesso!' };
+      return { success: true, message: 'Dados de exemplo criados!' };
     } catch (error) {
       console.error('❌ Erro ao criar dados de exemplo:', error);
-      setLoading(false);
+      setLoadingWithDelay(false);
       setError(error.message);
       throw error;
     }
-  }, [user, clients.length, createClient, createSubscription, generateInvoices]);
+  }, [user, clients.length, createClient, createSubscription, generateInvoices, setLoadingWithDelay]);
 
-  // ===== FUNÇÃO PARA LIMPAR TODOS OS DADOS =====
-  const clearAllData = useCallback(async () => {
-    if (!user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    try {
-      console.log('🔄 Limpando todos os dados...');
-      setLoading(true);
-
-      // Deletar todos os clientes (cascata deletará assinaturas e faturas)
-      const deletePromises = clients.map(async (client) => {
-        try {
-          await deleteClient(client.id);
-          return { success: true, clientId: client.id };
-        } catch (error) {
-          console.error('❌ Erro ao deletar cliente:', client.name, error);
-          return { success: false, clientId: client.id, error: error.message };
-        }
-      });
-
-      const results = await Promise.allSettled(deletePromises);
-      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length;
-
-      console.log(`✅ Limpeza concluída: ${successful} sucessos, ${failed} falhas`);
-      
-      return { 
-        success: true, 
-        message: `Dados limpos com sucesso! (${successful} clientes removidos)` 
-      };
-    } catch (error) {
-      console.error('❌ Erro ao limpar dados:', error);
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, [user, clients, deleteClient]);
-
-  // Função utilitária para forçar atualização dos dados
+  // ⚡ OTIMIZAÇÃO: Função de refresh otimizada
   const refreshData = useCallback(async () => {
     if (!user) return;
 
+    console.log('🔄 Forçando refresh otimizado...');
+    
     try {
-      console.log('🔄 Forçando atualização dos dados...');
-      setLoading(true);
+      setLoadingWithDelay(true, 0);
       
-      // Carregar dados diretamente dos serviços
-      const [clientsData, subscriptionsData] = await Promise.allSettled([
-        clientService.getAll(),
-        subscriptionService.getAll ? subscriptionService.getAll() : Promise.resolve([])
-      ]);
-
-      if (clientsData.status === 'fulfilled') {
-        setClients(clientsData.value || []);
-      }
+      // Reconectar listeners
+      isInitializedRef.current = false;
+      await setupListeners();
       
-      if (subscriptionsData.status === 'fulfilled') {
-        setSubscriptions(subscriptionsData.value || []);
-      }
-
-      setError(null);
     } catch (error) {
-      console.error('❌ Erro ao atualizar dados:', error);
+      console.error('❌ Erro no refresh:', error);
       setError(error.message);
-    } finally {
-      setLoading(false);
+      setLoadingWithDelay(false);
     }
-  }, [user]);
+  }, [user, setupListeners, setLoadingWithDelay]);
+
+  // ⚡ OTIMIZAÇÃO: Limpar dados otimizado
+  const clearAllData = useCallback(async () => {
+    if (!user || clients.length === 0) {
+      return { success: false, message: 'Nenhum dado para limpar' };
+    }
+
+    try {
+      console.log('🧹 Limpando todos os dados...');
+      setLoadingWithDelay(true);
+
+      const deletePromises = clients.map(client => deleteClient(client.id));
+      await Promise.allSettled(deletePromises);
+
+      console.log('✅ Limpeza concluída!');
+      setLoadingWithDelay(false, 500);
+      
+      return { success: true, message: 'Dados limpos com sucesso!' };
+    } catch (error) {
+      console.error('❌ Erro ao limpar dados:', error);
+      setError(error.message);
+      setLoadingWithDelay(false);
+      throw error;
+    }
+  }, [user, clients, deleteClient, setLoadingWithDelay]);
 
   return {
     // Estados
@@ -509,10 +527,9 @@ export const useFirestore = () => {
     updateInvoice,
     generateInvoices,
 
-    // Utilitários
+    // Utilitários otimizados
     createExampleData,
     clearAllData,
-    refreshData,
-    
+    refreshData
   };
 };

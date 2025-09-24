@@ -1,5 +1,5 @@
-// src/hooks/useFirebaseAuth.js - VERSÃO TOTALMENTE CORRIGIDA
-import { useState, useEffect } from 'react';
+// src/hooks/useFirebaseAuth.js - VERSÃO SUPER OTIMIZADA
+import { useState, useEffect, useRef } from 'react';
 import { 
   signInWithEmailAndPassword, 
   signOut, 
@@ -13,74 +13,89 @@ export const useFirebaseAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // ⚡ OTIMIZAÇÃO: Usar ref para evitar múltiplos listeners
+  const authListenerRef = useRef(null);
+  const isInitializedRef = useRef(false);
 
-  // Monitorar mudanças no estado de autenticação
+  // ⚡ OTIMIZAÇÃO: Setup do listener uma única vez
   useEffect(() => {
-    console.log('🔐 Configurando listener de autenticação...');
+    // Evitar múltiplos listeners
+    if (isInitializedRef.current) {
+      console.log('⚡ Auth listener já inicializado, ignorando...');
+      return;
+    }
+
+    console.log('🔐 Configurando listener de autenticação OTIMIZADO...');
+    isInitializedRef.current = true;
     
-    const unsubscribe = onAuthStateChanged(auth, 
+    // ⚡ OTIMIZAÇÃO: Configurar listener com cleanup automático
+    authListenerRef.current = onAuthStateChanged(auth, 
       (user) => {
-        console.log('🔐 Estado de autenticação mudou:', user ? `Usuário: ${user.email}` : 'Usuário deslogado');
+        console.log('🔐 Estado auth mudou:', user ? `Usuário: ${user.email}` : 'Deslogado');
         setUser(user);
         setLoading(false);
         setError(null);
       },
       (error) => {
-        console.error('❌ Erro no listener de autenticação:', error);
+        console.error('❌ Erro no listener auth:', error);
         setError(error.message);
         setLoading(false);
       }
     );
 
+    // ⚡ OTIMIZAÇÃO: Cleanup robusto
     return () => {
-      console.log('🧹 Removendo listener de autenticação');
-      unsubscribe();
+      console.log('🧹 Removendo listener de autenticação otimizado');
+      if (authListenerRef.current) {
+        try {
+          authListenerRef.current();
+          authListenerRef.current = null;
+        } catch (cleanupError) {
+          console.warn('⚠️ Aviso no cleanup auth:', cleanupError);
+        }
+      }
+      isInitializedRef.current = false;
     };
-  }, []);
+  }, []); // ⚡ OTIMIZAÇÃO: Array vazio - executa apenas uma vez
 
-  // Função de login
+  // ⚡ OTIMIZAÇÃO: Função de login com error handling melhorado
   const signIn = async (email, password) => {
+    if (!email?.trim() || !password?.trim()) {
+      const error = 'Email e senha são obrigatórios';
+      setError(error);
+      return { success: false, error };
+    }
+
     try {
-      console.log('🔐 Tentando fazer login com:', email);
+      console.log('🔐 Login otimizado para:', email);
       setLoading(true);
       setError(null);
 
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('✅ Login realizado com sucesso:', userCredential.user.email);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      console.log('✅ Login realizado:', userCredential.user.email);
       
       return { 
         success: true, 
         user: userCredential.user 
       };
     } catch (error) {
-      console.error('❌ Erro no login:', error.code, error.message);
+      console.error('❌ Erro no login:', error.code);
       
-      // Mapear erros para português
-      let errorMessage = error.message;
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'Usuário não encontrado';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Senha incorreta';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Email inválido';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'Conta desabilitada';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Muitas tentativas. Tente novamente mais tarde';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Erro de conexão. Verifique sua internet';
-          break;
-        default:
-          errorMessage = 'Erro ao fazer login. Tente novamente';
-      }
+      // ⚡ OTIMIZAÇÃO: Mapeamento otimizado de erros
+      const errorMessages = {
+        'auth/user-not-found': 'Usuário não encontrado',
+        'auth/wrong-password': 'Senha incorreta',
+        'auth/invalid-email': 'Email inválido',
+        'auth/user-disabled': 'Conta desabilitada',
+        'auth/too-many-requests': 'Muitas tentativas. Aguarde um momento',
+        'auth/network-request-failed': 'Erro de conexão',
+        'auth/invalid-credential': 'Credenciais inválidas'
+      };
       
+      const errorMessage = errorMessages[error.code] || 'Erro ao fazer login';
       setError(errorMessage);
+      
       return { 
         success: false, 
         error: errorMessage 
@@ -90,39 +105,45 @@ export const useFirebaseAuth = () => {
     }
   };
 
-  // Função de registro (para criar contas de teste)
+  // ⚡ OTIMIZAÇÃO: Função de registro otimizada
   const signUp = async (email, password) => {
+    if (!email?.trim() || !password?.trim()) {
+      const error = 'Email e senha são obrigatórios';
+      setError(error);
+      return { success: false, error };
+    }
+
+    if (password.length < 6) {
+      const error = 'Senha deve ter pelo menos 6 caracteres';
+      setError(error);
+      return { success: false, error };
+    }
+
     try {
-      console.log('🔐 Criando nova conta:', email);
+      console.log('🔐 Criando conta otimizada:', email);
       setLoading(true);
       setError(null);
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log('✅ Conta criada com sucesso:', userCredential.user.email);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      console.log('✅ Conta criada:', userCredential.user.email);
       
       return { 
         success: true, 
         user: userCredential.user 
       };
     } catch (error) {
-      console.error('❌ Erro ao criar conta:', error.code, error.message);
+      console.error('❌ Erro ao criar conta:', error.code);
       
-      let errorMessage = error.message;
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'Este email já está em uso';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Senha muito fraca. Use pelo menos 6 caracteres';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Email inválido';
-          break;
-        default:
-          errorMessage = 'Erro ao criar conta. Tente novamente';
-      }
+      const errorMessages = {
+        'auth/email-already-in-use': 'Este email já está em uso',
+        'auth/weak-password': 'Senha muito fraca',
+        'auth/invalid-email': 'Email inválido',
+        'auth/operation-not-allowed': 'Operação não permitida'
+      };
       
+      const errorMessage = errorMessages[error.code] || 'Erro ao criar conta';
       setError(errorMessage);
+      
       return { 
         success: false, 
         error: errorMessage 
@@ -132,35 +153,43 @@ export const useFirebaseAuth = () => {
     }
   };
 
-  // Função de logout
+  // ⚡ OTIMIZAÇÃO: Função de logout otimizada
   const logout = async () => {
     try {
-      console.log('🔐 Fazendo logout...');
+      console.log('🔐 Logout otimizado...');
       setLoading(true);
+      setError(null);
       
       await signOut(auth);
-      console.log('✅ Logout realizado com sucesso');
+      console.log('✅ Logout realizado');
       
       return { success: true };
     } catch (error) {
       console.error('❌ Erro no logout:', error);
-      setError(error.message);
+      const errorMessage = 'Erro ao fazer logout';
+      setError(errorMessage);
       return { 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       };
     } finally {
       setLoading(false);
     }
   };
 
-  // Função para resetar senha
+  // ⚡ OTIMIZAÇÃO: Reset de senha otimizado
   const resetPassword = async (email) => {
+    if (!email?.trim()) {
+      const error = 'Email é obrigatório';
+      setError(error);
+      return { success: false, error };
+    }
+
     try {
-      console.log('🔐 Enviando reset de senha para:', email);
+      console.log('🔐 Reset de senha para:', email);
       setError(null);
 
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email.trim());
       console.log('✅ Email de reset enviado');
       
       return { 
@@ -168,21 +197,17 @@ export const useFirebaseAuth = () => {
         message: 'Email de recuperação enviado!' 
       };
     } catch (error) {
-      console.error('❌ Erro ao enviar reset:', error);
+      console.error('❌ Erro no reset:', error.code);
       
-      let errorMessage = error.message;
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'Usuário não encontrado';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Email inválido';
-          break;
-        default:
-          errorMessage = 'Erro ao enviar email de recuperação';
-      }
+      const errorMessages = {
+        'auth/user-not-found': 'Usuário não encontrado',
+        'auth/invalid-email': 'Email inválido',
+        'auth/too-many-requests': 'Muitas tentativas. Aguarde um momento'
+      };
       
+      const errorMessage = errorMessages[error.code] || 'Erro ao enviar email';
       setError(errorMessage);
+      
       return { 
         success: false, 
         error: errorMessage 
@@ -190,33 +215,56 @@ export const useFirebaseAuth = () => {
     }
   };
 
-  // Função para login demo (desenvolvimento)
+  // ⚡ OTIMIZAÇÃO: Login demo com fallback inteligente
   const signInDemo = async () => {
-    // Primeiro tenta fazer login com a conta demo
-    let result = await signIn('demo@conexaodelivery.com', 'demo123');
+    const demoEmail = 'demo@conexaodelivery.com';
+    const demoPassword = 'demo123';
+
+    console.log('🎯 Tentando login demo...');
+
+    // Primeiro tenta login
+    let result = await signIn(demoEmail, demoPassword);
     
-    // Se não conseguir (conta não existe), cria a conta demo
+    // Se falhar por usuário não encontrado, cria a conta
     if (!result.success && result.error.includes('não encontrado')) {
       console.log('🔐 Conta demo não existe, criando...');
-      const signUpResult = await signUp('demo@conexaodelivery.com', 'demo123');
+      
+      const signUpResult = await signUp(demoEmail, demoPassword);
       
       if (signUpResult.success) {
         console.log('✅ Conta demo criada, fazendo login...');
-        result = await signIn('demo@conexaodelivery.com', 'demo123');
+        result = await signIn(demoEmail, demoPassword);
       }
     }
     
     return result;
   };
 
+  // ⚡ OTIMIZAÇÃO: Função para limpar erros
+  const clearError = () => {
+    setError(null);
+  };
+
+  // ⚡ OTIMIZAÇÃO: Verificar se usuário está logado
+  const isAuthenticated = !!user;
+  const isAdmin = user?.email === 'demo@conexaodelivery.com' || user?.email === 'admin@conexaodelivery.com';
+
   return {
+    // Estados
     user,
     loading,
     error,
+    isAuthenticated,
+    isAdmin,
+
+    // Funções principais
     signIn,
     signUp,
     signInDemo,
     logout,
-    resetPassword
+    resetPassword,
+
+    // Utilitários
+    clearError
   };
 };

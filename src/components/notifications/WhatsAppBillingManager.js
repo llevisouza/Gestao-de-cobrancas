@@ -800,22 +800,31 @@ const WhatsAppBillingManager = ({
   };
 
   // Obter QR Code
-  const handleGetQRCode = async () => {
-    setLoading(true);
-    try {
-      const result = await whatsappService.getQRCode();
-      if (result.success) {
-        setQrCode(result.qrCode);
-        setShowQRCode(true);
-      } else {
-        alert('Erro ao obter QR Code: ' + result.error);
+const handleGetQRCode = async () => {
+  setLoading(true);
+  try {
+    const result = await whatsappService.getQRCode();
+    if (result.success) {
+
+      // --- INÍCIO DA CORREÇÃO ---
+      let qrCodeData = result.qrCode;
+      // Verifica se a string já começa com "data:", se não, adiciona o prefixo.
+      if (qrCodeData && !qrCodeData.startsWith('data:')) {
+        qrCodeData = `data:image/png;base64,${qrCodeData}`;
       }
-    } catch (error) {
-      alert('Erro ao obter QR Code: ' + error.message);
-    } finally {
-      setLoading(false);
+      setQrCode(qrCodeData);
+      // --- FIM DA CORREÇÃO ---
+
+      setShowQRCode(true);
+    } else {
+      alert('Erro ao obter QR Code: ' + result.error);
     }
-  };
+  } catch (error) {
+    alert('Erro ao obter QR Code: ' + error.message)
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Testar conexão
   const handleTestConnection = async () => {
@@ -1283,7 +1292,7 @@ const WhatsAppBillingManager = ({
               </p>
               <div className="flex justify-center mb-4">
                 <img
-                  src={`data:image/png;base64,${qrCode}`}
+                  src={qrCode} 
                   alt="QR Code WhatsApp"
                   className="max-w-xs border rounded"
                 />

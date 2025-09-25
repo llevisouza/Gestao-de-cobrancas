@@ -1,16 +1,12 @@
-// src/components/notifications/WhatsAppBillingManager.js - VERSÃO FINAL CORRIGIDA
+// src/components/notifications/WhatsAppBillingManager.js - VERSÃO CORRIGIDA
 import React, { useState, useEffect } from 'react';
-// CORREÇÃO: Remover importações problemáticas e usar componentes inline temporariamente
-// import LoadingSpinner from '../common/LoadingSpinner';
-// import Modal from '../common/Modal';
-// import WhatsAppTemplateEditor from '../whatsapp/WhatsAppTemplateEditor';
-
-// Serviços (estas importações devem funcionar)
 import { whatsappService } from '../../services/whatsappService';
 import { whatsappAutomationService } from '../../services/whatsappAutomationService';
 import { formatCurrency } from '../../utils/formatters';
 import { formatDate } from '../../utils/dateUtils';
+import WhatsAppManualSender from '../whatsapp/WhatsAppManualSender';
 
+// COMPONENTE DE CONFIGURAÇÕES CORRIGIDO E COMPLETO
 const WhatsAppSettingsManager = ({ onClose }) => {
   const [companyInfo, setCompanyInfo] = useState({
     name: 'Conexão Delivery',
@@ -142,7 +138,7 @@ const WhatsAppSettingsManager = ({ onClose }) => {
   return (
     <div className="max-w-4xl">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-6">
         <div className="flex space-x-6">
           <button
             onClick={() => setActiveTab('company')}
@@ -172,116 +168,94 @@ const WhatsAppSettingsManager = ({ onClose }) => {
         )}
       </div>
 
-      {/* Tab Empresa */}
+      {/* Aba Empresa */}
       {activeTab === 'company' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nome da Empresa *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nome da Empresa
               </label>
               <input
                 type="text"
                 value={companyInfo.name}
                 onChange={(e) => handleCompanyChange('name', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Nome da empresa"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Nome da sua empresa"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Telefone de Contato *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Telefone
               </label>
               <input
                 type="text"
                 value={companyInfo.phone}
                 onChange={(e) => handleCompanyChange('phone', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="(11) 99999-9999"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email de Contato
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
               </label>
               <input
                 type="email"
                 value={companyInfo.email}
                 onChange={(e) => handleCompanyChange('email', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="contato@empresa.com"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Chave PIX para Pagamentos *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Chave PIX
               </label>
               <input
                 type="text"
                 value={companyInfo.pixKey}
                 onChange={(e) => handleCompanyChange('pixKey', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="CPF, CNPJ, telefone ou email"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Chave PIX para pagamentos"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Esta chave será incluída nas mensagens de cobrança
-              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Website
               </label>
               <input
                 type="text"
                 value={companyInfo.website}
                 onChange={(e) => handleCompanyChange('website', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="www.empresa.com"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Horário de Atendimento
               </label>
               <input
                 type="text"
                 value={companyInfo.supportHours}
                 onChange={(e) => handleCompanyChange('supportHours', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="8h às 18h, Segunda a Sexta"
               />
             </div>
           </div>
 
-          {/* Preview */}
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium text-gray-800 mb-2">Preview das Informações</h4>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p><span className="font-medium">Empresa:</span> {companyInfo.name}</p>
-              <p><span className="font-medium">Telefone:</span> {companyInfo.phone}</p>
-              <p><span className="font-medium">Email:</span> {companyInfo.email}</p>
-              <p><span className="font-medium">Chave PIX:</span> {companyInfo.pixKey}</p>
-              <p><span className="font-medium">Website:</span> {companyInfo.website}</p>
-              <p><span className="font-medium">Atendimento:</span> {companyInfo.supportHours}</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
+          <div className="flex justify-end">
             <button
               onClick={saveCompanyInfo}
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
             >
               {loading ? 'Salvando...' : 'Salvar Informações'}
             </button>
@@ -289,148 +263,132 @@ const WhatsAppSettingsManager = ({ onClose }) => {
         </div>
       )}
 
-      {/* Tab Automação */}
+      {/* Aba Automação */}
       {activeTab === 'automation' && (
-        <div className="space-y-4">
-          {/* Horário Comercial */}
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium text-gray-800 mb-3">Horário Comercial</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+        <div className="space-y-6">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Horário de Início
-                </label>
-                <select
-                  value={automationConfig.businessHours.start}
-                  onChange={(e) => handleAutomationChange('businessHours.start', parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded"
-                >
-                  {Array.from({length: 24}, (_, i) => (
-                    <option key={i} value={i}>{i}:00</option>
-                  ))}
-                </select>
+                <h3 className="text-lg font-medium text-gray-900">Status da Automação</h3>
+                <p className="text-sm text-gray-600">Controle quando a automação deve funcionar</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Horário de Término
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={automationConfig.enabled}
+                  onChange={(e) => handleAutomationChange('enabled', e.target.checked)}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm font-medium text-gray-700">
+                  Automação Ativa
                 </label>
-                <select
-                  value={automationConfig.businessHours.end}
-                  onChange={(e) => handleAutomationChange('businessHours.end', parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded"
-                >
-                  {Array.from({length: 24}, (_, i) => (
-                    <option key={i} value={i}>{i}:00</option>
-                  ))}
-                </select>
               </div>
             </div>
+          </div>
 
-            {/* Dias da Semana */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dias de Funcionamento
+                Intervalo de Verificação (minutos)
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[0, 1, 2, 3, 4, 5, 6].map(day => (
-                  <label key={day} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={automationConfig.businessHours.workDays.includes(day)}
-                      onChange={() => handleWorkDaysChange(day)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm">{dayLabels[day]}</span>
-                  </label>
-                ))}
-              </div>
+              <input
+                type="number"
+                value={automationConfig.checkInterval / 60000}
+                onChange={(e) => handleAutomationChange('checkInterval', parseInt(e.target.value) * 60000)}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                min="1"
+                max="1440"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dias para Lembrete
+              </label>
+              <input
+                type="number"
+                value={automationConfig.reminderDays}
+                onChange={(e) => handleAutomationChange('reminderDays', parseInt(e.target.value))}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                min="1"
+                max="30"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Horário Início
+              </label>
+              <input
+                type="number"
+                value={automationConfig.businessHours.start}
+                onChange={(e) => handleAutomationChange('businessHours.start', parseInt(e.target.value))}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                min="0"
+                max="23"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Horário Fim
+              </label>
+              <input
+                type="number"
+                value={automationConfig.businessHours.end}
+                onChange={(e) => handleAutomationChange('businessHours.end', parseInt(e.target.value))}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                min="0"
+                max="23"
+              />
             </div>
           </div>
 
-          {/* Configurações de Lembrete */}
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium text-gray-800 mb-3">Lembretes e Cobranças</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Lembrete (dias antes)
-                </label>
-                <input
-                  type="number"
-                  value={automationConfig.reminderDays}
-                  onChange={(e) => handleAutomationChange('reminderDays', parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded"
-                  min="1"
-                  max="30"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Max. Mensagens/Dia
-                </label>
-                <input
-                  type="number"
-                  value={automationConfig.maxMessagesPerDay}
-                  onChange={(e) => handleAutomationChange('maxMessagesPerDay', parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded"
-                  min="1"
-                  max="10"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Delay entre Envios (ms)
-                </label>
-                <input
-                  type="number"
-                  value={automationConfig.delayBetweenMessages}
-                  onChange={(e) => handleAutomationChange('delayBetweenMessages', parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded"
-                  min="1000"
-                  step="1000"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Escalonamento */}
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium text-gray-800 mb-3">
-              Escalonamento de Cobranças (dias em atraso)
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {automationConfig.overdueScalation.map((days, index) => (
-                <div key={index}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cobrança {index + 1}
-                  </label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Dias da Semana
+            </label>
+            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+              {Object.entries(dayLabels).map(([day, label]) => (
+                <label key={day} className="flex items-center space-x-2 cursor-pointer">
                   <input
-                    type="number"
-                    value={days}
-                    onChange={(e) => handleEscalationChange(index, e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded"
-                    min="1"
-                    placeholder="Dias"
+                    type="checkbox"
+                    checked={automationConfig.businessHours.workDays.includes(parseInt(day))}
+                    onChange={() => handleWorkDaysChange(parseInt(day))}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                </div>
+                  <span className="text-sm">{label}</span>
+                </label>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Sistema enviará cobrança automaticamente nos dias especificados após o vencimento
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Escalação de Vencimento (dias)
+            </label>
+            <div className="grid grid-cols-5 gap-2">
+              {automationConfig.overdueScalation.map((days, index) => (
+                <input
+                  key={index}
+                  type="number"
+                  value={days}
+                  onChange={(e) => handleEscalationChange(index, e.target.value)}
+                  className="p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                />
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Dias após vencimento para enviar lembretes
             </p>
           </div>
 
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
+          <div className="flex justify-end">
             <button
               onClick={saveAutomationConfig}
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
             >
               {loading ? 'Salvando...' : 'Salvar Configurações'}
             </button>
@@ -441,8 +399,7 @@ const WhatsAppSettingsManager = ({ onClose }) => {
   );
 };
 
-// COMPONENTES INLINE PARA EVITAR PROBLEMAS DE IMPORTAÇÃO
-
+// COMPONENTES AUXILIARES
 const LoadingSpinner = ({ size = 'medium', message = '' }) => {
   const getSizeClasses = () => {
     switch (size) {
@@ -691,6 +648,7 @@ const WhatsAppBillingManager = ({
   const [currentTemplateType, setCurrentTemplateType] = useState('');
   const [showBulkSender, setShowBulkSender] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showManualSender, setShowManualSender] = useState(false);
   
   // Estados de resultados
   const [sendResults, setSendResults] = useState([]);
@@ -800,31 +758,26 @@ const WhatsAppBillingManager = ({
   };
 
   // Obter QR Code
-const handleGetQRCode = async () => {
-  setLoading(true);
-  try {
-    const result = await whatsappService.getQRCode();
-    if (result.success) {
-
-      // --- INÍCIO DA CORREÇÃO ---
-      let qrCodeData = result.qrCode;
-      // Verifica se a string já começa com "data:", se não, adiciona o prefixo.
-      if (qrCodeData && !qrCodeData.startsWith('data:')) {
-        qrCodeData = `data:image/png;base64,${qrCodeData}`;
+  const handleGetQRCode = async () => {
+    setLoading(true);
+    try {
+      const result = await whatsappService.getQRCode();
+      if (result.success) {
+        let qrCodeData = result.qrCode;
+        if (qrCodeData && !qrCodeData.startsWith('data:')) {
+          qrCodeData = `data:image/png;base64,${qrCodeData}`;
+        }
+        setQrCode(qrCodeData);
+        setShowQRCode(true);
+      } else {
+        alert('Erro ao obter QR Code: ' + result.error);
       }
-      setQrCode(qrCodeData);
-      // --- FIM DA CORREÇÃO ---
-
-      setShowQRCode(true);
-    } else {
-      alert('Erro ao obter QR Code: ' + result.error);
+    } catch (error) {
+      alert('Erro ao obter QR Code: ' + error.message)
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    alert('Erro ao obter QR Code: ' + error.message)
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Testar conexão
   const handleTestConnection = async () => {
@@ -1028,46 +981,88 @@ const handleGetQRCode = async () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header com Status */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">
-            WhatsApp - Gestão de Cobrança
-          </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              ⚙️ Configurações
-            </button>
-            <button
-              onClick={loadInitialData}
-              disabled={loading}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-            >
-              {loading ? 'Atualizando...' : 'Atualizar'}
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-green-600 to-green-500 shadow-xl">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center space-x-4 mb-6 lg:mb-0">
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                <span className="text-3xl">📱</span>
+              </div>
+              <div className="text-white">
+                <h1 className="text-3xl font-bold">WhatsApp Business</h1>
+                <p className="text-green-100 text-lg">Sistema de Cobrança Inteligente</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setShowManualSender(true)}
+                className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+              >
+                <span>🎯</span>
+                <span className="font-medium">Envio Manual</span>
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="px-6 py-3 bg-white text-green-600 rounded-xl hover:bg-green-50 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl font-medium"
+              >
+                <span>⚙️</span>
+                <span>Configurações</span>
+              </button>
+              <button
+                onClick={loadInitialData}
+                disabled={loading}
+                className="px-6 py-3 bg-green-700 text-white rounded-xl hover:bg-green-800 transition-all duration-200 flex items-center space-x-2 shadow-lg disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    <span>Carregando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🔄</span>
+                    <span>Atualizar</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Status da Conexão */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Status WhatsApp</p>
-                <p className={`font-medium ${getStatusColor(connectionStatus?.connected)}`}>
-                  {connectionStatus?.connected ? '✅ Conectado' : '❌ Desconectado'}
-                </p>
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        {/* Status Cards Modernos */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Status WhatsApp */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    connectionStatus?.connected ? 'bg-green-100' : 'bg-red-100'
+                  }`}>
+                    <span className="text-2xl">
+                      {connectionStatus?.connected ? '✅' : '❌'}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Status WhatsApp</h3>
+                    <p className={`text-sm font-medium ${getStatusColor(connectionStatus?.connected)}`}>
+                      {connectionStatus?.connected ? 'Conectado' : 'Desconectado'}
+                    </p>
+                  </div>
+                </div>
               </div>
+              
               <div className="flex gap-2">
                 {!connectionStatus?.connected && (
                   <button
                     onClick={handleGetQRCode}
                     disabled={loading}
-                    className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                    className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
                   >
                     QR Code
                   </button>
@@ -1075,7 +1070,7 @@ const handleGetQRCode = async () => {
                 <button
                   onClick={handleTestConnection}
                   disabled={loading}
-                  className="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
+                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
                 >
                   Testar
                 </button>
@@ -1083,199 +1078,304 @@ const handleGetQRCode = async () => {
             </div>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Automação</p>
-                <p className={`font-medium ${automationRunning ? 'text-green-600' : 'text-gray-600'}`}>
-                  {automationRunning ? '🤖 Ativa' : '⏸️ Parada'}
-                </p>
+          {/* Status Automação */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    automationRunning ? 'bg-green-100' : 'bg-gray-100'
+                  }`}>
+                    <span className="text-2xl">
+                      {automationRunning ? '🤖' : '⏸️'}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Automação</h3>
+                    <p className={`text-sm font-medium ${
+                      automationRunning ? 'text-green-600' : 'text-gray-600'
+                    }`}>
+                      {automationRunning ? 'Ativa' : 'Parada'}
+                    </p>
+                  </div>
+                </div>
               </div>
+              
               <button
                 onClick={toggleAutomation}
                 disabled={loading || !connectionStatus?.connected}
-                className={`px-3 py-1 rounded text-xs ${
+                className={`w-full px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
                   automationRunning 
                     ? 'bg-red-500 text-white hover:bg-red-600' 
                     : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
+                } disabled:opacity-50`}
               >
-                {automationRunning ? 'Parar' : 'Iniciar'}
+                {automationRunning ? 'Parar Automação' : 'Iniciar Automação'}
               </button>
             </div>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Notificações</p>
-                <p className="font-medium text-gray-800">
-                  📊 {notifications.length} pendentes
-                </p>
+          {/* Notificações Pendentes */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Notificações</h3>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium text-blue-600">{notifications.length}</span> pendentes
+                    </p>
+                  </div>
+                </div>
               </div>
+              
               <button
                 onClick={runManualCycle}
                 disabled={loading || !connectionStatus?.connected}
-                className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium disabled:opacity-50"
               >
-                Executar
+                Executar Ciclo
               </button>
             </div>
           </div>
         </div>
 
-        {/* Estatísticas da Automação */}
+        {/* Estatísticas Detalhadas */}
         {automationStats && Object.keys(automationStats).length > 0 && (
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h3 className="font-medium text-blue-800 mb-2">Estatísticas</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-blue-600">Mensagens Enviadas</p>
-                <p className="font-medium">{automationStats.messagesSent || 0}</p>
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <span className="text-xl">📈</span>
               </div>
-              <div>
-                <p className="text-blue-600">Erros</p>
-                <p className="font-medium">{automationStats.errors || 0}</p>
+              <h3 className="text-xl font-semibold text-gray-900">Estatísticas de Performance</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="text-center p-4 bg-green-50 rounded-xl border border-green-200">
+                <div className="text-2xl font-bold text-green-600 mb-1">
+                  {automationStats.messagesSent || 0}
+                </div>
+                <div className="text-sm text-green-700">Mensagens Enviadas</div>
               </div>
-              <div>
-                <p className="text-blue-600">Última Execução</p>
-                <p className="font-medium">
-                  {automationStats.lastRun ? 
-                    formatDate(automationStats.lastRun) : 'Nunca'
-                  }
-                </p>
+              <div className="text-center p-4 bg-red-50 rounded-xl border border-red-200">
+                <div className="text-2xl font-bold text-red-600 mb-1">
+                  {automationStats.errors || 0}
+                </div>
+                <div className="text-sm text-red-700">Erros</div>
               </div>
-              <div>
-                <p className="text-blue-600">Uptime</p>
-                <p className="font-medium">
-                  {automationStats.uptime ? 
-                    Math.round(automationStats.uptime / 60000) + 'm' : '0m'
-                  }
-                </p>
+              <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <div className="text-2xl font-bold text-blue-600 mb-1">
+                  {automationStats.lastRun ? formatDate(automationStats.lastRun) : 'Nunca'}
+                </div>
+                <div className="text-sm text-blue-700">Última Execução</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-xl border border-purple-200">
+                <div className="text-2xl font-bold text-purple-600 mb-1">
+                  {automationStats.uptime ? Math.round(automationStats.uptime / 60000) + 'm' : '0m'}
+                </div>
+                <div className="text-sm text-purple-700">Uptime</div>
               </div>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Templates */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold mb-4">Templates de Mensagem</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { key: 'overdue', label: 'Fatura Vencida', icon: '🚨' },
-            { key: 'reminder', label: 'Lembrete', icon: '🔔' },
-            { key: 'new_invoice', label: 'Nova Fatura', icon: '📄' },
-            { key: 'payment_confirmed', label: 'Pagamento Confirmado', icon: '✅' }
-          ].map(template => (
-            <div key={template.key} className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center">
-                  <span className="mr-2">{template.icon}</span>
-                  <span className="font-medium">{template.label}</span>
-                </div>
-                <span className={`text-xs px-2 py-1 rounded ${
-                  templates[template.key] 
-                    ? 'bg-green-100 text-green-700' 
-                    : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {templates[template.key] ? 'Personalizado' : 'Padrão'}
-                </span>
-              </div>
-              <button
-                onClick={() => openTemplateEditor(template.key)}
-                className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
-              >
-                {templates[template.key] ? 'Editar' : 'Personalizar'}
-              </button>
+        {/* Templates de Mensagem Modernos */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+          <div className="flex items-center space-x-3 mb-8">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-2xl">💬</span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Lista de Notificações */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="p-6 border-b">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">
-              Notificações Pendentes ({notifications.length})
-            </h3>
-            <div className="flex gap-2">
-              <button
-                onClick={selectAllNotifications}
-                className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
-                disabled={notifications.length === 0}
-              >
-                {selectedNotifications.length === notifications.length ? 'Desmarcar' : 'Marcar'} Todas
-              </button>
-              <button
-                onClick={sendSelectedNotifications}
-                disabled={selectedNotifications.length === 0 || loading || !connectionStatus?.connected}
-                className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 text-sm"
-              >
-                Enviar Selecionadas ({selectedNotifications.length})
-              </button>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">Templates de Mensagem</h3>
+              <p className="text-gray-600">Personalize suas mensagens automáticas</p>
             </div>
           </div>
-        </div>
-
-        {notifications.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <p>📭 Nenhuma notificação pendente</p>
-            <p className="text-sm mt-1">Todas as faturas estão em dia!</p>
-          </div>
-        ) : (
-          <div className="divide-y">
-            {notifications.map((notification) => (
-              <div
-                key={notification.id}
-                className={`p-4 hover:bg-gray-50 transition-colors ${
-                  selectedNotifications.includes(notification.id) ? 'bg-blue-50' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedNotifications.includes(notification.id)}
-                    onChange={() => toggleNotificationSelection(notification.id)}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-lg">{getNotificationIcon(notification.type)}</span>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {notification.client.name}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {notification.client.phone} • {getTypeLabel(notification.type)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right">
-                        <p className="font-medium text-gray-900">
-                          {formatCurrency(notification.invoice.amount)}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Venc: {formatDate(notification.invoice.dueDate)}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {notification.subscription && (
-                      <div className="mt-2 text-xs text-gray-500">
-                        📋 Plano: {notification.subscription.name}
-                      </div>
-                    )}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { key: 'overdue', label: 'Fatura Vencida', icon: '🚨', color: 'red', description: 'Cobranças após vencimento' },
+              { key: 'reminder', label: 'Lembrete', icon: '🔔', color: 'yellow', description: 'Aviso antes do vencimento' },
+              { key: 'new_invoice', label: 'Nova Fatura', icon: '📄', color: 'blue', description: 'Fatura gerada' },
+              { key: 'payment_confirmed', label: 'Pagamento', icon: '✅', color: 'green', description: 'Confirmação de pagamento' }
+            ].map(template => (
+              <div key={template.key} className="relative group bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-gray-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <span className="text-3xl">{template.icon}</span>
                   </div>
+                  
+                  <h4 className="font-bold text-gray-900 mb-2">
+                    {template.label}
+                  </h4>
+                  
+                  <p className="text-sm text-gray-700 mb-4">
+                    {template.description}
+                  </p>
+                  
+                  <div className="mb-4">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      templates[template.key] 
+                        ? 'bg-green-200 text-green-800' 
+                        : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {templates[template.key] ? '✨ Personalizado' : '📝 Padrão'}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={() => openTemplateEditor(template.key)}
+                    className="w-full px-4 py-3 bg-gray-500 text-white rounded-xl hover:bg-gray-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+                  >
+                    {templates[template.key] ? '✏️ Editar' : '🎨 Personalizar'}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-        )}
+        </div>
+
+        {/* Lista de Notificações Moderna */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          {/* Header da seção */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-8 py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center space-x-4 mb-4 sm:mb-0">
+                <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">📋</span>
+                </div>
+                <div className="text-white">
+                  <h3 className="text-2xl font-bold">Notificações Pendentes</h3>
+                  <p className="text-blue-100">
+                    {notifications.length} {notifications.length === 1 ? 'mensagem' : 'mensagens'} aguardando envio
+                  </p>
+                </div>
+              </div>
+              
+              {notifications.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={selectAllNotifications}
+                    className="px-4 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-all duration-200 text-sm font-medium"
+                    disabled={notifications.length === 0}
+                  >
+                    {selectedNotifications.length === notifications.length ? 'Desmarcar' : 'Marcar'} Todas
+                  </button>
+                  {selectedNotifications.length > 0 && (
+                    <button
+                      onClick={sendSelectedNotifications}
+                      disabled={!connectionStatus?.connected || loading}
+                      className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                          <span>Enviando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>📤</span>
+                          <span>Enviar {selectedNotifications.length}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Lista de notificações */}
+          {notifications.length === 0 ? (
+            <div className="text-center py-16 px-8">
+              <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">🎉</span>
+              </div>
+              <h4 className="text-2xl font-bold text-gray-900 mb-3">
+                Tudo em Dia!
+              </h4>
+              <p className="text-gray-600 text-lg max-w-md mx-auto">
+                Não há notificações WhatsApp pendentes no momento. Todas as cobranças estão em dia!
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {notifications.map((notification) => {
+                const isSelected = selectedNotifications.includes(notification.id);
+                const typeConfig = {
+                  overdue: { bg: 'bg-red-50 border-red-200', text: 'text-red-800', icon: '🚨', badge: 'bg-red-500' },
+                  reminder: { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-800', icon: '🔔', badge: 'bg-yellow-500' },
+                  new_invoice: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800', icon: '📄', badge: 'bg-blue-500' }
+                };
+                const config = typeConfig[notification.type] || typeConfig.reminder;
+                
+                return (
+                  <div key={notification.id} className={`p-6 transition-all duration-200 hover:bg-gray-50 ${
+                    isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  }`}>
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-shrink-0 pt-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleNotificationSelection(notification.id)}
+                          className="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-4">
+                            <div className={`w-12 h-12 ${config.bg} border rounded-xl flex items-center justify-center`}>
+                              <span className="text-xl">{config.icon}</span>
+                            </div>
+                            
+                            <div>
+                              <div className="flex items-center space-x-3 mb-2">
+                                <h4 className="text-lg font-semibold text-gray-900">
+                                  {notification.client.name}
+                                </h4>
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text} border`}>
+                                  {config.icon} {getTypeLabel(notification.type)}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <div className="flex items-center space-x-1">
+                                  <span>📱</span>
+                                  <span>{notification.client.phone}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <span>💰</span>
+                                  <span className="font-medium">{formatCurrency(notification.invoice.amount)}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <span>📅</span>
+                                  <span>Venc: {formatDate(notification.invoice.dueDate)}</span>
+                                </div>
+                              </div>
+                              
+                              {notification.subscription && (
+                                <div className="mt-2 flex items-center space-x-2">
+                                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-gray-100 text-gray-700">
+                                    <span className="mr-1">📋</span>
+                                    {notification.subscription.name}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal QR Code */}
@@ -1376,6 +1476,23 @@ const handleGetQRCode = async () => {
       >
         <WhatsAppSettingsManager onClose={() => setShowSettings(false)} />
       </Modal>
+
+      {/* Modal Envio Manual Controlado */}
+      {showManualSender && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 p-4 overflow-y-auto">
+          <div className="min-h-full flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl">
+              <WhatsAppManualSender
+                clients={clients}
+                invoices={invoices}
+                subscriptions={subscriptions}
+                connectionStatus={connectionStatus}
+                onClose={() => setShowManualSender(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {loading && (

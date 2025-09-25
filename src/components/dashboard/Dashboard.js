@@ -37,19 +37,32 @@ const Dashboard = ({ onNavigate }) => {
     
     return () => clearInterval(timer);
   }, []);
-
+    // ✅ CORREÇÃO: Função para determinar status real da fatura
+    const getActualInvoiceStatus = (invoice) => {
+      if (invoice.status === 'pago') {
+        return 'pago'; // Se já está pago, manter como pago
+      }
+      
+      // Calcular diferença de dias
+      const daysDiff = getDaysDifference(invoice.dueDate);
+      
+      // ✅ CORREÇÃO: Só marcar como vencida se passou da data (dias negativos)
+      if (daysDiff < 0) {
+        return 'vencida'; // Vencida (data já passou)
+      } else {
+        return 'pendente'; // Pendente (hoje ou futuro)
+      }
+    };
   // ⚡ OTIMIZAÇÃO: Calcular métricas com useMemo para evitar recálculos
-  const dashboardMetrics = useMemo(() => {
-    console.log('🔄 Recalculando métricas do dashboard...');
+    const dashboardMetrics = useMemo(() => {
+      console.log('🔄 Recalculando métricas do dashboard...');
     
     const today = new Date().toISOString().split('T')[0];
     
-    // Faturas corrigidas com status real
+    // ✅ CORREÇÃO: Usar a nova função para status correto
     const correctedInvoices = invoices.map(invoice => ({
       ...invoice,
-      actualStatus: invoice.status === 'pending' && getDaysDifference(invoice.dueDate) < 0 
-        ? 'overdue' 
-        : invoice.status
+      actualStatus: getActualInvoiceStatus(invoice)
     }));
 
     const todayInvoices = correctedInvoices.filter(inv => 
@@ -57,8 +70,8 @@ const Dashboard = ({ onNavigate }) => {
     ).length;
 
     const pendingAmount = correctedInvoices
-      .filter(inv => inv.actualStatus === 'pending')
-      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+        .filter(inv => inv.actualStatus === 'pendente')
+        .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
     const overdueCount = correctedInvoices.filter(inv => inv.actualStatus === 'overdue').length;
     const overdueAmount = correctedInvoices
@@ -72,6 +85,7 @@ const Dashboard = ({ onNavigate }) => {
     const paymentRate = correctedInvoices.length > 0 
       ? (correctedInvoices.filter(inv => inv.actualStatus === 'paid').length / correctedInvoices.length * 100)
       : 0;
+
 
     // Atividade recente (últimas ações)
     const recentActivity = [
@@ -273,7 +287,7 @@ const Dashboard = ({ onNavigate }) => {
                     <span className={showAnimations ? "animate-pulse" : ""}>👋</span>
                   </h1>
                   <p className="text-gray-600 text-lg">
-                    Sistema de Cobranças Otimizado v2.0
+                    Sistema de Cobranças
                   </p>
                 </div>
               </div>
@@ -291,7 +305,7 @@ const Dashboard = ({ onNavigate }) => {
                   })}
                 </div>
                 <div className="text-gray-500">
-                  Performance: ⚡ Otimizado
+
                 </div>
               </div>
             </div>
@@ -563,7 +577,7 @@ const Dashboard = ({ onNavigate }) => {
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm ${
                         activity.type === 'invoice' 
-                          ? activity.status === 'paid'
+                          ? activity.status === 'pago'
                             ? 'bg-green-100 text-green-600' 
                             : activity.status === 'overdue'
                             ? 'bg-red-100 text-red-600'
@@ -583,11 +597,11 @@ const Dashboard = ({ onNavigate }) => {
                       </div>
                       
                       <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        activity.status === 'paid' 
+                        activity.status === 'pago' 
                           ? 'bg-green-100 text-green-700'
-                          : activity.status === 'overdue'
+                          : activity.status === 'atrasada'
                           ? 'bg-red-100 text-red-700'
-                          : activity.status === 'pending'
+                          : activity.status === 'pendente'
                           ? 'bg-yellow-100 text-yellow-700'
                           : 'bg-blue-100 text-blue-700'
                       }`}>

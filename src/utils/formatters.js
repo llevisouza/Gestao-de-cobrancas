@@ -1,5 +1,34 @@
-// src/utils/formatters.js - VERSÃO ATUALIZADA
-import { formatDate as formatDateUtil } from './dateUtils';
+// src/utils/formatters.js - VERSÃO FINAL CORRIGIDA
+// Função interna para formatação de data (sem dependências externas)
+const formatDateUtil = (dateInput) => {
+  if (!dateInput) return '';
+  
+  try {
+    let date;
+    
+    // Se é string no formato YYYY-MM-DD, criar data local
+    if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateInput.split('-');
+      date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    } else {
+      date = new Date(dateInput);
+    }
+    
+    if (isNaN(date.getTime())) {
+      return dateInput.toString();
+    }
+    
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'America/Sao_Paulo'
+    });
+  } catch (error) {
+    console.error('Erro ao formatar data:', error);
+    return dateInput.toString();
+  }
+};
 
 // Formatação de moeda
 export const formatCurrency = (value) => {
@@ -17,7 +46,7 @@ export const formatCurrency = (value) => {
   });
 };
 
-// Formatação de data - usar a função corrigida
+// Formatação de data - usar a função interna
 export const formatDate = (dateInput) => {
   return formatDateUtil(dateInput);
 };
@@ -238,6 +267,7 @@ export const formatStatus = (status) => {
   return statusMap[status] || status;
 };
 
+// Export default com todas as funções (para compatibilidade)
 export default {
   formatCurrency,
   formatDate,

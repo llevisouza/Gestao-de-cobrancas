@@ -2,7 +2,7 @@
 import { whatsappService } from './whatsappService.js';
 import { collection, query, where, getDocs, addDoc,limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from './firebase.js';
-import { formatDate, getCurrentDate, getDaysDifference } from '../utils/dateUtils';
+import { formatDate, getCurrentDate, getDaysDifference } from '../utils/dateUtils.js';
 
 class WhatsAppAutomationService {
   constructor() {

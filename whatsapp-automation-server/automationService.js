@@ -64,11 +64,6 @@ class WhatsAppAutomationService {
     console.log('🤖 WhatsApp Automation Service inicializado');
     console.log(` WhatsApp API: ${this.whatsappConfig.baseURL}`);
     console.log(` Instance: ${this.whatsappConfig.instanceName}`);
-
-    return {
-      success: true,
-      message: 'Automação inicializada com sucesso',
-    };
   }
 
   // Utilitários de data

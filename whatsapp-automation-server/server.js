@@ -1,7 +1,7 @@
 // server.js - SERVIDOR PRINCIPAL REFATORADO COM ENDPOINTS DE MESSAGING
 const express = require('express');
 const cors = require('cors');
-const { WhatsAppAutomationService } = require('./automationService');
+const WhatsAppAutomationService = require('./automationService');
 require('dotenv').config();
 
 const app = express();
@@ -132,7 +132,6 @@ app.post('/api/messages/send', async (req, res) => {
 
     const result = await automationService.sendWhatsAppMessage(phone, message);
     
-    // Log da mensagem manual
     if (result.success) {
       await automationService.saveNotificationLog({
         type: type,
@@ -305,7 +304,6 @@ app.post('/api/messages/bulk', async (req, res) => {
         });
       }
       
-      // Delay entre envios
       if (i < notifications.length - 1) {
         console.log(`⏳ Aguardando ${delayMs}ms antes do próximo envio...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -667,66 +665,55 @@ process.on('unhandledRejection', async (reason, promise) => {
   await automationService.stopAutomation();
   process.exit(1);
 });
-// Auto-start da automação após inicialização
+
+// Função para auto-iniciar a automação
 async function autoStartAutomation() {
   console.log('🔄 Verificando auto-start da automação...');
-  
-  // Aguardar 30 segundos para garantir que tudo está estabilizado
-  setTimeout(async () => {
-    try {
-      // Verificar se WhatsApp está conectado
-      const whatsappOk = await checkWhatsApp();
-      if (!whatsappOk) {
-        console.log('⚠️ WhatsApp não conectado - automação não iniciada automaticamente');
-        console.log('💡 Conecte o WhatsApp e inicie manualmente via API');
-        return;
-      }
 
-      // Verificar se já está rodando
-      if (automationState.isRunning) {
-        console.log('ℹ️ Automação já está rodando');
-        return;
-      }
+  // Aguardar 30 segundos para estabilizar as conexões
+  await new Promise(resolve => setTimeout(resolve, 30000));
 
-      // Iniciar automação automaticamente
-      console.log('🚀 Iniciando automação automaticamente...');
-      
-      const cronExpression = `*/${config.checkInterval} * * * *`;
-      automationState.cronJob = cron.schedule(cronExpression, runAutomationCycle, {
-        scheduled: false
-      });
+  try {
+    // Verificar saúde do sistema
+    const health = await automationService.checkHealth();
 
-      automationState.cronJob.start();
-      automationState.isRunning = true;
-
-      console.log(`✅ Automação iniciada automaticamente - ciclo a cada ${config.checkInterval} min`);
-      
-      // Primeira execução em 2 minutos
-      setTimeout(runAutomationCycle, 120000);
-
-    } catch (error) {
-      console.error('❌ Erro no auto-start:', error);
-      console.log('💡 Inicie manualmente via API quando necessário');
+    if (!health.database) {
+      console.error('⚠️ Firebase não conectado - automação não iniciada automaticamente');
+      return;
     }
-  }, 30000); // 30 segundos após o servidor iniciar
+
+    if (!health.whatsapp.connected) {
+      console.error('⚠️ WhatsApp não conectado - automação não iniciada automaticamente');
+      console.log('💡 Conecte o WhatsApp via QR Code e inicie manualmente via API/site');
+      return;
+    }
+
+    // Verificar se já está rodando (evitar duplicatas)
+    if (automationService.isRunning) {
+      console.log('ℹ️ Automação já está rodando');
+      return;
+    }
+
+    // Iniciar automação automaticamente
+    console.log('🚀 Iniciando automação automaticamente...');
+    const result = await automationService.startAutomation();
+
+    if (result.success) {
+      console.log(`✅ Automação iniciada automaticamente - ciclo a cada ${automationService.config.checkInterval / 60000} minutos`);
+      // Executar um ciclo inicial após 5 segundos
+      setTimeout(async () => {
+        await automationService.runManualCycle();
+      }, 5000);
+    } else {
+      console.error('❌ Falha ao iniciar automação automaticamente:', result.error);
+    }
+  } catch (error) {
+    console.error('❌ Erro no auto-start:', error.message);
+    console.log('💡 Inicie manualmente via API/site quando pronto');
+  }
 }
 
 // Inicializar servidor
-app.listen(port, () => {
-  console.log('🚀 ================================');
-  console.log('🚀 SERVIDOR AUTOMAÇÃO WHATSAPP');
-  console.log('🚀 ================================');
-  console.log(`🌐 Porta: ${port}`);
-  console.log(`🔗 Health: http://localhost:${port}/health`);
-  console.log(`📱 WhatsApp API: ${config.whatsappApiUrl}`);
-  console.log(`⚙️ Instância: ${config.instanceName}`);
-  console.log(`⏰ Intervalo: ${config.checkInterval} min`);
-  console.log('🚀 ================================');
-  
-  // Iniciar auto-start
-  autoStartAutomation();
-});
-// Iniciar servidor
 app.listen(port, async () => {
   console.log('🚀 ======================================');
   console.log('🚀 SERVIDOR WHATSAPP AUTOMATION INICIADO');
@@ -737,37 +724,37 @@ app.listen(port, async () => {
   console.log(`📊 Status: http://localhost:${port}/api/automation/status`);
   console.log(`📱 Messages API: http://localhost:${port}/api/messages/*`);
   console.log('🚀 ======================================');
-  
+
   // Log das variáveis de ambiente importantes
-  console.log('⚙️  CONFIGURAÇÕES:');
+  console.log('⚙️ CONFIGURAÇÕES:');
   console.log(`    Firebase Project: ${process.env.FIREBASE_PROJECT_ID || '❌ NÃO DEFINIDO'}`);
   console.log(`    WhatsApp API: ${process.env.WHATSAPP_API_URL || '❌ NÃO DEFINIDO'}`);
   console.log(`    WhatsApp Instance: ${process.env.WHATSAPP_INSTANCE || '❌ NÃO DEFINIDO'}`);
   console.log('🚀 ======================================');
-  
-  // Verificar configuração e tentar inicializar
+
+  // Verificar saúde inicial
   try {
     const health = await automationService.checkHealth();
-    
+
     console.log('💚 HEALTH CHECK:');
     console.log(`    Database: ${health.database ? '✅' : '❌'}`);
     console.log(`    WhatsApp: ${health.whatsapp.connected ? '✅' : '❌'}`);
     console.log(`    Business Hours: ${health.businessHours ? '✅ Horário comercial' : '⏰ Fora do horário'}`);
-    
+
     if (health.database && health.whatsapp.connected) {
       console.log('🤖 Sistema pronto para automação!');
-      console.log('📋 Use POST /api/automation/start para iniciar');
     } else {
-      console.log('⚠️  Sistema parcialmente configurado');
+      console.log('⚠️ Sistema parcialmente configurado');
       console.log('🔧 Verifique as configurações antes de iniciar');
     }
-    
   } catch (error) {
     console.error('❌ Erro no health check inicial:', error.message);
   }
-  
-  console.log('🚀 ======================================');
-});
 
+  console.log('🚀 ======================================');
+
+  // Iniciar auto-start da automação
+  autoStartAutomation();
+});
 
 module.exports = app;

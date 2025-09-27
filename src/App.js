@@ -1,10 +1,8 @@
-// src/App.js - VERSÃO OTIMIZADA COM COMPONENTE WHATSAPP UNIFICADO
 import React, { useState, useEffect } from 'react';
 import { useFirebaseAuth } from './hooks/useFirebaseAuth';
 import { useFirestore } from './hooks/useFirestore';
 import { ROUTES } from './utils/constants';
-
-// Componentes
+import AutomationDashboard from './components/automation/AutomationDashboard';
 import Header from './components/common/Header';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import LoginPage from './components/auth/LoginPage';
@@ -12,7 +10,7 @@ import FirebaseSetup from './components/auth/FirebaseSetup';
 import Dashboard from './components/dashboard/Dashboard';
 import ClientsPage from './components/clients/ClientsPage';
 import ReportsPage from './components/reports/ReportsPage';
-import UnifiedWhatsAppManager from './components/whatsapp/UnifiedWhatsAppManager'; // ✅ Novo componente unificado
+import UnifiedWhatsAppManager from './components/whatsapp/UnifiedWhatsAppManager';
 import WhatsAppAutomationConfig from './components/whatsapp/WhatsAppAutomationConfig';
 
 // Estilos
@@ -22,7 +20,6 @@ import './styles/components.css';
 function App() {
   // Hooks
   const { user, loading: authLoading, signIn, signInDemo, logout } = useFirebaseAuth();
-  // Centralizando o carregamento de dados do Firestore aqui
   const { clients, subscriptions, invoices, loading: firestoreLoading, createExampleData } = useFirestore();
 
   // Estados locais
@@ -33,7 +30,7 @@ function App() {
   const isFirebaseConfigured = () => {
     const requiredVars = [
       'REACT_APP_FIREBASE_API_KEY',
-      'REACT_APP_FIREBASE_PROJECT_ID'
+      'REACT_APP_FIREBASE_PROJECT_ID',
     ];
     return requiredVars.every(envVar => process.env[envVar]);
   };
@@ -63,7 +60,7 @@ function App() {
     }
   };
 
-  // Loading inicial (autenticação + dados do firestore)
+  // Loading inicial (autenticação + dados do Firestore)
   if (authLoading || (user && firestoreLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -72,9 +69,7 @@ function App() {
           <p className="mt-4 text-gray-600 animate-pulse">
             {authLoading ? 'Verificando autenticação...' : 'Carregando dados...'}
           </p>
-          <div className="mt-2 text-sm text-gray-500">
-            🔐 Conectando ao Firebase...
-          </div>
+          <div className="mt-2 text-sm text-gray-500">🔐 Conectando ao Firebase...</div>
         </div>
       </div>
     );
@@ -100,12 +95,7 @@ function App() {
                 <p className="font-medium">Erro de Login</p>
                 <p className="text-sm">{appError}</p>
               </div>
-              <button
-                onClick={() => setAppError(null)}
-                className="ml-3 text-red-500 hover:text-red-700"
-              >
-                ✕
-              </button>
+              <button onClick={() => setAppError(null)} className="ml-3 text-red-500 hover:text-red-700">✕</button>
             </div>
           </div>
         )}
@@ -128,38 +118,32 @@ function App() {
         {currentView === ROUTES.DASHBOARD && (
           <Dashboard
             onNavigate={setCurrentView}
-            // Passando os dados como props
             clients={clients}
             subscriptions={subscriptions}
             invoices={invoices}
           />
         )}
 
-        {currentView === ROUTES.CLIENTS && (
-          // O componente ClientsPage já usa o hook internamente, então não precisa de props.
-          // Para consistência, o ideal seria ele também receber props.
-          <ClientsPage />
-        )}
-
+        {currentView === ROUTES.CLIENTS && <ClientsPage />}
         {currentView === ROUTES.REPORTS && (
           <ReportsPage
-            // Passando os dados como props
             clients={clients}
             invoices={invoices}
           />
         )}
 
-        {/* ✅ NOVO: Componente WhatsApp unificado */}
+        {/* ✅ WhatsApp Unificado com Controle de Automação */}
         {currentView === ROUTES.WHATSAPP && (
           <UnifiedWhatsAppManager
             invoices={invoices}
             clients={clients}
             subscriptions={subscriptions}
             onNavigate={setCurrentView}
-          />
+          >
+            <AutomationDashboard /> {/* Integração do controle dentro do WhatsApp Manager */}
+          </UnifiedWhatsAppManager>
         )}
 
-        {/* Configuração avançada da automação (opcional) */}
         {currentView === ROUTES.WHATSAPP_AUTOMATION && (
           <WhatsAppAutomationConfig />
         )}

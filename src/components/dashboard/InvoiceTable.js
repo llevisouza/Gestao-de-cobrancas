@@ -1,16 +1,20 @@
-// src/components/dashboard/InvoiceTable.js - VERSÃO CORRIGIDA
 import React, { useMemo, useState } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import { formatDate, formatCurrency } from '../../utils/formatters';
-import { getDaysDifference, getCurrentDate } from '../../utils/dateUtils';
+import { getCurrentDate } from '../../utils/dateUtils';
 import { INVOICE_STATUS, INVOICE_STATUS_LABELS } from '../../utils/constants';
+import { 
+  processInvoicesStandardized,
+  getStandardizedDaysInfo,
+  getCorrectedInvoiceStatus 
+} from '../../utils/invoiceStatusUtils';
 
 const InvoiceTable = ({ invoices, clients }) => {
   const { updateInvoice } = useFirestore();
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('dueDate');
+  const [updatingInvoices, setUpdatingInvoices] = useState(new Set());
 
-  // Memoizar a busca de nomes dos clientes
   const clientsMap = useMemo(() => {
     const map = new Map();
     clients.forEach(client => {
@@ -19,23 +23,11 @@ const InvoiceTable = ({ invoices, clients }) => {
     return map;
   }, [clients]);
 
-  // CORREÇÃO: Processar faturas com status correto
   const processedInvoices = useMemo(() => {
-    const today = getCurrentDate();
+    // Usa o utilitário padronizado para processar faturas
+    const standardizedInvoices = processInvoicesStandardized(invoices);
     
-    return [...invoices]
-      .map(invoice => {
-        // Verificar se a fatura está realmente vencida
-        let correctedStatus = invoice.status;
-        const diffDays = getDaysDifference(invoice.dueDate, today);
-        
-        // Se está marcada como pending mas a data já passou, marcar como overdue
-        if (invoice.status === 'pending' && diffDays < 0) {
-          correctedStatus = 'overdue';
-        }
-        
-        return { ...invoice, status: correctedStatus };
-      })
+    return standardizedInvoices
       .filter(invoice => {
         if (filter === 'all') return true;
         return invoice.status === filter;
@@ -53,7 +45,6 @@ const InvoiceTable = ({ invoices, clients }) => {
       .slice(0, 20);
   }, [invoices, filter, sortBy]);
 
-  // Estatísticas das faturas
   const stats = useMemo(() => {
     const filtered = processedInvoices;
     return {
@@ -65,15 +56,75 @@ const InvoiceTable = ({ invoices, clients }) => {
     };
   }, [processedInvoices]);
 
-  const handleStatusChange = async (invoiceId, newStatus) => {
+  const handleMarkAsPaid = async (invoice) => {
+    if (updatingInvoices.has(invoice.id)) return;
+    
+    const confirmMessage = `Marcar fatura de ${formatCurrency(invoice.amount)} como paga?\n\nCliente: ${getClientData(invoice.clientId).name}`;
+    
+    if (!window.confirm(confirmMessage)) return;
+
+    setUpdatingInvoices(prev => new Set([...prev, invoice.id]));
+    
     try {
-      await updateInvoice(invoiceId, { status: newStatus });
+      const updateData = {
+        status: 'paid',
+        paidDate: getCurrentDate(),
+        paidAt: new Date().toISOString()
+      };
+      
+      await updateInvoice(invoice.id, updateData);
+      
+      // Feedback visual temporário
+      const rowElement = document.getElementById(`invoice-row-${invoice.id}`);
+      if (rowElement) {
+        rowElement.style.backgroundColor = '#f0fdf4';
+        rowElement.style.borderColor = '#22c55e';
+        setTimeout(() => {
+          rowElement.style.backgroundColor = '';
+          rowElement.style.borderColor = '';
+        }, 2000);
+      }
+      
+      console.log(`Fatura ${invoice.id} marcada como paga`);
+    } catch (error) {
+      console.error('Erro ao atualizar fatura:', error);
+      alert(`Erro ao marcar fatura como paga: ${error.message}`);
+    } finally {
+      setUpdatingInvoices(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(invoice.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleStatusChange = async (invoiceId, newStatus) => {
+    if (updatingInvoices.has(invoiceId)) return;
+    
+    setUpdatingInvoices(prev => new Set([...prev, invoiceId]));
+    
+    try {
+      const updateData = { status: newStatus };
+      
       if (newStatus === 'paid') {
-        alert('✅ Fatura marcada como paga!');
+        updateData.paidDate = getCurrentDate();
+        updateData.paidAt = new Date().toISOString();
+      }
+      
+      await updateInvoice(invoiceId, updateData);
+      
+      if (newStatus === 'paid') {
+        alert('Fatura marcada como paga!');
       }
     } catch (error) {
       console.error('Erro ao atualizar fatura:', error);
-      alert('❌ Erro ao atualizar status da fatura');
+      alert('Erro ao atualizar status da fatura');
+    } finally {
+      setUpdatingInvoices(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(invoiceId);
+        return newSet;
+      });
     }
   };
 
@@ -83,7 +134,6 @@ const InvoiceTable = ({ invoices, clients }) => {
       [INVOICE_STATUS.PAID]: 'badge badge-success',
       [INVOICE_STATUS.OVERDUE]: 'badge badge-danger'
     };
-    
     return (
       <span className={badgeMap[status] || 'badge badge-primary'}>
         {INVOICE_STATUS_LABELS[status] || status}
@@ -100,50 +150,6 @@ const InvoiceTable = ({ invoices, clients }) => {
     };
   };
 
-  // CORREÇÃO: Função de dias corrigida
-  const getDaysInfo = (invoice) => {
-    const diffDays = getDaysDifference(invoice.dueDate);
-
-    if (invoice.status === 'paid') {
-      return { 
-        text: '✅ Pago', 
-        class: 'text-green-600 font-medium',
-        bgClass: 'bg-green-50'
-      };
-    }
-    
-    if (diffDays < 0) {
-      const daysOverdue = Math.abs(diffDays);
-      return { 
-        text: `⚠️ ${daysOverdue} dias em atraso`, 
-        class: 'text-red-600 font-medium',
-        bgClass: 'bg-red-50'
-      };
-    }
-    
-    if (diffDays === 0) {
-      return { 
-        text: '🔥 Vence hoje', 
-        class: 'text-orange-600 font-medium',
-        bgClass: 'bg-orange-50'
-      };
-    }
-    
-    if (diffDays <= 3) {
-      return { 
-        text: `⏰ ${diffDays} dia${diffDays > 1 ? 's' : ''} restante${diffDays > 1 ? 's' : ''}`, 
-        class: 'text-yellow-600 font-medium',
-        bgClass: 'bg-yellow-50'
-      };
-    }
-    
-    return { 
-      text: `📅 ${diffDays} dia${diffDays > 1 ? 's' : ''} restante${diffDays > 1 ? 's' : ''}`, 
-      class: 'text-gray-600',
-      bgClass: 'bg-gray-50'
-    };
-  };
-  
   if (!invoices || invoices.length === 0) {
     return (
       <div className="card text-center py-12">
@@ -153,7 +159,7 @@ const InvoiceTable = ({ invoices, clients }) => {
         <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma fatura encontrada</h3>
         <p className="text-gray-600 mb-4">As faturas aparecerão aqui quando forem geradas</p>
         <div className="text-sm text-gray-500">
-          <p>💡 <strong>Dica:</strong> Use o botão "Gerar Faturas" no Dashboard para criar faturas baseadas nas assinaturas ativas</p>
+          <p>Dica: Use o botão "Gerar Faturas" no Dashboard para criar faturas baseadas nas assinaturas ativas</p>
         </div>
       </div>
     );
@@ -161,18 +167,18 @@ const InvoiceTable = ({ invoices, clients }) => {
 
   return (
     <div className="card">
-      {/* Header com filtros e estatísticas */}
+      {/* Header da tabela */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
-              📋 Faturas Recentes
+              Faturas Recentes
             </h3>
             <p className="text-sm text-gray-500 mt-1">
               Mostrando {processedInvoices.length} de {invoices.length} faturas
             </p>
           </div>
-
+          
           {/* Filtros */}
           <div className="flex space-x-2">
             <select
@@ -185,7 +191,6 @@ const InvoiceTable = ({ invoices, clients }) => {
               <option value="paid">Pagas</option>
               <option value="overdue">Vencidas</option>
             </select>
-
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -197,7 +202,7 @@ const InvoiceTable = ({ invoices, clients }) => {
             </select>
           </div>
         </div>
-
+        
         {/* Estatísticas rápidas */}
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="text-center p-3 bg-white rounded-lg border">
@@ -218,7 +223,7 @@ const InvoiceTable = ({ invoices, clients }) => {
           </div>
         </div>
       </div>
-      
+
       <div className="table-container">
         <table className="table">
           <thead>
@@ -232,13 +237,16 @@ const InvoiceTable = ({ invoices, clients }) => {
           </thead>
           <tbody>
             {processedInvoices.map(invoice => {
-              const daysInfo = getDaysInfo(invoice);
+              // Usa o utilitário padronizado para informações de dias
+              const daysInfo = getStandardizedDaysInfo(invoice);
               const clientData = getClientData(invoice.clientId);
+              const isUpdating = updatingInvoices.has(invoice.id);
               
               return (
                 <tr 
-                  key={invoice.id} 
-                  className={`hover:bg-gray-50 transition-colors ${!clientData.exists ? 'bg-yellow-50' : ''}`}
+                  key={invoice.id}
+                  id={`invoice-row-${invoice.id}`}
+                  className={`hover:bg-gray-50 transition-all duration-200 ${!clientData.exists ? 'bg-yellow-50' : ''} ${isUpdating ? 'opacity-75' : ''}`}
                 >
                   <td>
                     <div className="flex items-center">
@@ -276,7 +284,6 @@ const InvoiceTable = ({ invoices, clients }) => {
                       </div>
                     </div>
                   </td>
-                  
                   <td>
                     <div className="text-sm">
                       <span className="font-semibold text-gray-900">
@@ -289,24 +296,24 @@ const InvoiceTable = ({ invoices, clients }) => {
                       )}
                     </div>
                   </td>
-                  
                   <td>
                     <div className="text-sm">
                       <div className="text-gray-900 font-medium">
                         {formatDate(invoice.dueDate)}
                       </div>
+                      {/* Usa o utilitário padronizado para mostrar informações de dias */}
                       <div className={`text-xs mt-1 px-2 py-1 rounded-full ${daysInfo.bgClass} ${daysInfo.class}`}>
                         {daysInfo.text}
                       </div>
                     </div>
                   </td>
-                  
                   <td>
                     {invoice.status === INVOICE_STATUS.PENDING ? (
                       <select
                         value={invoice.status}
                         onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
-                        className="form-select text-sm py-1 px-2 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                        disabled={isUpdating}
+                        className="form-select text-sm py-1 px-2 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50"
                       >
                         <option value={INVOICE_STATUS.PENDING}>Pendente</option>
                         <option value={INVOICE_STATUS.PAID}>Pago</option>
@@ -315,41 +322,58 @@ const InvoiceTable = ({ invoices, clients }) => {
                       getStatusBadge(invoice.status)
                     )}
                   </td>
-                  
                   <td>
-                    <div className="flex space-x-2">
-                      {invoice.status === INVOICE_STATUS.PENDING && (
+                    <div className="flex items-center space-x-2">
+                      {/* Botão para marcar como pago */}
+                      {(invoice.status === INVOICE_STATUS.PENDING || invoice.status === INVOICE_STATUS.OVERDUE) && (
                         <button
-                          onClick={() => handleStatusChange(invoice.id, INVOICE_STATUS.PAID)}
-                          className="text-green-600 hover:text-green-800 text-xs font-medium px-2 py-1 rounded bg-green-50 hover:bg-green-100 transition-colors"
-                          title="Marcar como pago"
+                          onClick={() => handleMarkAsPaid(invoice)}
+                          disabled={isUpdating}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            daysInfo.isOverdue 
+                              ? 'bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg'
+                              : 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg'
+                          }`}
+                          title={daysInfo.isOverdue ? "Marcar fatura vencida como paga" : "Marcar como pago"}
                         >
-                          ✅ Marcar Pago
+                          {isUpdating ? (
+                            <div className="flex items-center">
+                              <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-1"></div>
+                              Salvando...
+                            </div>
+                          ) : (
+                            <>
+                              {daysInfo.isOverdue ? 'Regularizar' : 'Marcar Pago'}
+                            </>
+                          )}
                         </button>
                       )}
                       
+                      {/* Botão para cobranças vencidas */}
                       {invoice.status === INVOICE_STATUS.OVERDUE && (
                         <button
-                          onClick={() => alert('🚀 Em breve: Função de reenvio de cobrança!')}
+                          onClick={() => alert('Em breve: Função de reenvio de cobrança!')}
                           className="text-red-600 hover:text-red-800 text-xs font-medium px-2 py-1 rounded bg-red-50 hover:bg-red-100 transition-colors"
                           title="Reenviar cobrança"
                         >
-                          📧 Cobrar
+                          Cobrar
                         </button>
                       )}
-                      
+
+                      {/* Info de pagamento para faturas pagas */}
                       {invoice.status === INVOICE_STATUS.PAID && invoice.paidDate && (
                         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
-                          💚 Pago: {formatDate(invoice.paidDate)}
+                          Pago: {formatDate(invoice.paidDate)}
                         </span>
                       )}
-                      
+
+                      {/* Botão de PDF */}
                       <button
-                        onClick={() => alert('🚀 Em breve: Geração de PDF da fatura!')}
+                        onClick={() => alert('Em breve: Geração de PDF da fatura!')}
                         className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 transition-colors"
                         title="Gerar PDF"
                       >
-                        📄 PDF
+                        PDF
                       </button>
                     </div>
                   </td>
@@ -359,8 +383,8 @@ const InvoiceTable = ({ invoices, clients }) => {
           </tbody>
         </table>
       </div>
-
-      {/* Footer com informações */}
+      
+      {/* Rodapé se há mais faturas */}
       {invoices.length > 20 && (
         <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center">
           <p className="text-sm text-gray-600">
@@ -368,7 +392,7 @@ const InvoiceTable = ({ invoices, clients }) => {
           </p>
         </div>
       )}
-
+      
       {/* Resumo financeiro */}
       <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-blue-50 border-t border-gray-200">
         <div className="flex flex-wrap items-center justify-between space-y-2 lg:space-y-0">
@@ -377,13 +401,13 @@ const InvoiceTable = ({ invoices, clients }) => {
           </div>
           <div className="flex flex-wrap space-x-4 text-sm">
             <span className="text-green-700">
-              💰 Total Pago: <strong>{formatCurrency(invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0))}</strong>
+              Total Pago: <strong>{formatCurrency(invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0))}</strong>
             </span>
             <span className="text-yellow-700">
-              ⏳ Pendente: <strong>{formatCurrency(invoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0))}</strong>
+              Pendente: <strong>{formatCurrency(invoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0))}</strong>
             </span>
             <span className="text-red-700">
-              ⚠️ Vencido: <strong>{formatCurrency(invoices.filter(inv => inv.status === 'overdue').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0))}</strong>
+              Vencido: <strong>{formatCurrency(invoices.filter(inv => inv.status === 'overdue').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0))}</strong>
             </span>
           </div>
         </div>

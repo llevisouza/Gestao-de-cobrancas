@@ -1,288 +1,373 @@
-// src/utils/dateUtils.js
+// utils/dateUtils.js - Versão Corrigida
 
 /**
- * Formata uma data para o padrão brasileiro (DD/MM/AAAA).
- * Lida com strings ISO, objetos Date e strings YYYY-MM-DD.
- */
-export const formatDate = (dateInput) => {
-  if (!dateInput) return '';
-  
-  try {
-    let date;
-    
-    // Se é uma string de data ISO com timezone (ex: "2025-09-24T10:00:00.000Z")
-    if (typeof dateInput === 'string' && dateInput.includes('T')) {
-      date = new Date(dateInput);
-    } 
-    // Se é uma string de data simples (ex: "2025-09-24")
-    else if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Cria a data local sem problemas de fuso horário, tratando como UTC para evitar off-by-one
-      const [year, month, day] = dateInput.split('-').map(Number);
-      date = new Date(Date.UTC(year, month - 1, day));
-    } 
-    // Outros casos (ex: objeto Date)
-    else {
-      date = new Date(dateInput);
-    }
-    
-    if (isNaN(date.getTime())) {
-      console.warn('Data inválida fornecida para formatação:', dateInput);
-      return dateInput.toString();
-    }
-    
-    // Formatação para português brasileiro (DD/MM/AAAA)
-    return date.toLocaleDateString('pt-BR', {
-      timeZone: 'UTC', // Garante que a data não mude por causa do fuso horário do cliente
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  } catch (error) {
-    console.error('Erro ao formatar data:', error, dateInput);
-    return dateInput.toString();
-  }
-};
-
-/**
- * Retorna a data atual no formato YYYY-MM-DD.
+ * Obtém a data atual no formato YYYY-MM-DD
+ * @returns {string} Data atual
  */
 export const getCurrentDate = () => {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
+  return now.toISOString().split('T')[0];
 };
 
 /**
- * Calcula a diferença em dias entre duas datas.
- * Ignora o fuso horário e a parte de tempo das datas.
- */
-export const getDaysDifference = (dateString1, dateString2 = null) => {
-  try {
-    // Usa a data atual se a segunda data não for fornecida
-    const today = dateString2 || getCurrentDate();
-    
-    // ✅ CORREÇÃO: Extrai apenas a parte YYYY-MM-DD das strings de data
-    const date1Str = dateString1.includes('T') ? dateString1.split('T')[0] : dateString1;
-    const date2Str = today.includes('T') ? today.split('T')[0] : today;
-    
-    // ✅ CORREÇÃO: Se as datas forem idênticas, retorna 0 imediatamente para otimização
-    if (date1Str === date2Str) {
-      return 0;
-    }
-    
-    // Extrai os componentes ano, mês e dia
-    const [year1, month1, day1] = date1Str.split('-').map(Number);
-    const [year2, month2, day2] = date2Str.split('-').map(Number);
-    
-    // Cria objetos Date em UTC para evitar problemas de fuso horário e horário de verão
-    const date1 = new Date(Date.UTC(year1, month1 - 1, day1));
-    const date2 = new Date(Date.UTC(year2, month2 - 1, day2));
-    
-    // Calcula a diferença em milissegundos
-    const diffTime = date1.getTime() - date2.getTime();
-    
-    // ✅ CORREÇÃO: Arredonda o resultado para obter o número inteiro de dias
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays;
-  } catch (error) {
-    console.error('❌ Erro ao calcular diferença de dias:', error);
-    return 0; // Retorna 0 em caso de erro
-  }
-};
-
-/**
- * Verifica se uma data é hoje.
- */
-export const isToday = (dateString) => {
-  try {
-    const today = getCurrentDate();
-    const inputDate = dateString.split('T')[0];
-    return inputDate === today;
-  } catch (error) {
-    console.error('Erro ao verificar se é hoje:', error);
-    return false;
-  }
-};
-
-/**
- * Verifica se uma data está no passado.
- */
-export const isPast = (dateString) => {
-  try {
-    const diffDays = getDaysDifference(dateString);
-    return diffDays < 0;
-  } catch (error) {
-    console.error('Erro ao verificar se é passado:', error);
-    return false;
-  }
-};
-
-/**
- * Verifica se uma data está no futuro.
- */
-export const isFuture = (dateString) => {
-  try {
-    const diffDays = getDaysDifference(dateString);
-    return diffDays > 0;
-  } catch (error) {
-    console.error('Erro ao verificar se é futuro:', error);
-    return false;
-  }
-};
-
-/**
- * Adiciona um número de dias a uma data no formato YYYY-MM-DD.
- */
-export const addDays = (dateString, days) => {
-  try {
-    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    date.setUTCDate(date.getUTCDate() + days);
-    
-    const newYear = date.getUTCFullYear();
-    const newMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const newDay = String(date.getUTCDate()).padStart(2, '0');
-    
-    return `${newYear}-${newMonth}-${newDay}`;
-  } catch (error) {
-    console.error('Erro ao adicionar dias:', error);
-    return dateString;
-  }
-};
-
-// Funções para obter início/fim de períodos
-export const startOfMonth = (date = new Date()) => new Date(date.getFullYear(), date.getMonth(), 1);
-export const endOfMonth = (date = new Date()) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
-export const startOfYear = (date = new Date()) => new Date(date.getFullYear(), 0, 1);
-export const endOfYear = (date = new Date()) => new Date(date.getFullYear(), 11, 31);
-
-/**
- * Calcula uma data de vencimento com base em um dia do mês.
- */
-export const calculateDueDateByDayOfMonth = (dayOfMonth, referenceMonth = null, referenceYear = null) => {
-  try {
-    const today = new Date();
-    const year = referenceYear || today.getFullYear();
-    const month = referenceMonth !== null ? referenceMonth : today.getMonth(); // 0-11
-    
-    let dueDate = new Date(year, month, dayOfMonth);
-    
-    // Se a data já passou no mês corrente, avança para o próximo mês
-    if (referenceMonth === null && dueDate <= today) {
-      dueDate = new Date(year, month + 1, dayOfMonth);
-    }
-    
-    const dueDateYear = dueDate.getFullYear();
-    const dueDateMonth = String(dueDate.getMonth() + 1).padStart(2, '0');
-    const dueDateDay = String(dueDate.getDate()).padStart(2, '0');
-    
-    return `${dueDateYear}-${dueDateMonth}-${dueDateDay}`;
-  } catch (error) {
-    console.error('Erro ao calcular data de vencimento:', error);
-    return getCurrentDate();
-  }
-};
-
-/**
- * Valida se uma string está no formato de data YYYY-MM-DD.
- */
-export const isValidDate = (dateString) => {
-  if (!dateString) return false;
-  
-  try {
-    const datePart = dateString.split('T')[0];
-    if (!datePart.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
-
-    const [year, month, day] = datePart.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    
-    return !isNaN(date.getTime()) && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-  } catch (error) {
-    return false;
-  }
-};
-
-/**
- * Retorna a data e hora atual no formato ISO 8601.
+ * Obtém a data e hora atual no formato ISO
+ * @returns {string} Data e hora atual
  */
 export const getCurrentDateTime = () => {
   return new Date().toISOString();
 };
 
 /**
- * Retorna informações de status (cor, texto, prioridade) para uma fatura.
+ * Formata uma data no padrão brasileiro (DD/MM/AAAA)
+ * @param {string|Date} date - Data a ser formatada
+ * @returns {string} Data formatada
  */
-export const getInvoiceStatusInfo = (invoice) => {
-  const diffDays = getDaysDifference(invoice.dueDate);
+export const formatDate = (date) => {
+  if (!date) return '';
   
-  let status, statusText, statusColor, priority, icon;
-  
-  if (invoice.status === 'paid') {
-    status = 'paid';
-    statusText = 'Pago';
-    statusColor = 'text-green-600 bg-green-50 border-green-200';
-    priority = 4; // Prioridade baixa
-    icon = '✅';
-  } else if (diffDays < 0) {
-    status = 'overdue';
-    const daysOverdue = Math.abs(diffDays);
-    statusText = `${daysOverdue} dia${daysOverdue > 1 ? 's' : ''} em atraso`;
-    statusColor = 'text-red-600 bg-red-50 border-red-200';
-    priority = 1; // Prioridade máxima
-    icon = '🚨';
-  } else if (diffDays === 0) {
-    status = 'today';
-    statusText = 'Vence hoje';
-    statusColor = 'text-orange-600 bg-orange-50 border-orange-200';
-    priority = 2; // Prioridade alta
-    icon = '⚠️';
-  } else if (diffDays <= 3) {
-    status = 'soon';
-    statusText = `Vence em ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
-    statusColor = 'text-yellow-600 bg-yellow-50 border-yellow-200';
-    priority = 3; // Prioridade média
-    icon = '⏰';
-  } else {
-    status = 'pending';
-    statusText = `Vence em ${diffDays} dias`;
-    statusColor = 'text-blue-600 bg-blue-50 border-blue-200';
-    priority = 5; // Prioridade mais baixa
-    icon = '📅';
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00') : new Date(date);
+    
+    if (isNaN(dateObj.getTime())) {
+      console.warn('⚠️ Data inválida:', date);
+      return 'Data inválida';
+    }
+    
+    return dateObj.toLocaleDateString('pt-BR');
+  } catch (error) {
+    console.error('❌ Erro ao formatar data:', error);
+    return 'Erro na data';
   }
+};
+
+/**
+ * Calcula a diferença em dias entre uma data e hoje
+ * CORRIGIDO: Agora calcula corretamente considerando timezone
+ * @param {string} dateString - Data no formato YYYY-MM-DD
+ * @returns {number} Diferença em dias (negativo = vencida, positivo = futuro, 0 = hoje)
+ */
+export const getDaysDifference = (dateString) => {
+  if (!dateString) return 0;
+  
+  try {
+    // Criar objetos Date sem considerar timezone
+    const today = new Date();
+    const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const targetDate = new Date(dateString + 'T00:00:00');
+    const targetDateOnly = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    
+    // Calcular diferença em milissegundos e converter para dias
+    const diffTime = targetDateOnly.getTime() - todayDateOnly.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays;
+  } catch (error) {
+    console.error('❌ Erro ao calcular diferença de dias:', error);
+    return 0;
+  }
+};
+
+/**
+ * Obtém informações detalhadas sobre os dias até o vencimento
+ * @param {string} dueDate - Data de vencimento no formato YYYY-MM-DD
+ * @returns {Object} Informações sobre o vencimento
+ */
+export const getDaysInfo = (dueDate) => {
+  const diffDays = getDaysDifference(dueDate);
   
   return {
-    status,
-    statusText,
-    statusColor,
-    priority,
-    icon,
-    diffDays,
-    daysOverdue: diffDays < 0 ? Math.abs(diffDays) : 0,
+    days: Math.abs(diffDays),
+    diffDays: diffDays,
     isOverdue: diffDays < 0,
     isToday: diffDays === 0,
-    isSoon: diffDays > 0 && diffDays <= 3
+    isTomorrow: diffDays === 1,
+    isThisWeek: diffDays >= 0 && diffDays <= 7,
+    text: formatDaysText(diffDays),
+    shortText: formatDaysTextShort(diffDays),
+    cssClass: getDaysCssClass(diffDays),
+    priority: getDaysPriority(diffDays)
   };
 };
 
-// Exportação padrão de todas as funções
-export default {
-  formatDate,
-  getCurrentDate,
-  getCurrentDateTime,
-  getDaysDifference,
-  isToday,
-  isPast,
-  isFuture,
-  addDays,
-  startOfMonth,
-  endOfMonth,
-  startOfYear,
-  endOfYear,
-  calculateDueDateByDayOfMonth,
-  isValidDate,
-  getInvoiceStatusInfo
+/**
+ * Formata a diferença de dias em texto legível
+ * @param {number} diffDays - Diferença em dias
+ * @returns {string} Texto formatado
+ */
+export const formatDaysText = (diffDays) => {
+  if (diffDays < 0) {
+    const days = Math.abs(diffDays);
+    if (days === 1) return '1 dia em atraso';
+    return `${days} dias em atraso`;
+  } else if (diffDays === 0) {
+    return 'vence hoje';
+  } else if (diffDays === 1) {
+    return 'vence amanhã';
+  } else if (diffDays === 2) {
+    return 'vence depois de amanhã';
+  } else if (diffDays <= 7) {
+    return `vence em ${diffDays} dias`;
+  } else if (diffDays <= 30) {
+    const weeks = Math.floor(diffDays / 7);
+    const remainingDays = diffDays % 7;
+    if (remainingDays === 0) {
+      return `vence em ${weeks} semana${weeks > 1 ? 's' : ''}`;
+    }
+    return `vence em ${diffDays} dias`;
+  } else {
+    const months = Math.floor(diffDays / 30);
+    return `vence em ${months} mês${months > 1 ? 'es' : ''}`;
+  }
+};
+
+/**
+ * Formata a diferença de dias em texto curto
+ * @param {number} diffDays - Diferença em dias
+ * @returns {string} Texto curto
+ */
+export const formatDaysTextShort = (diffDays) => {
+  if (diffDays < 0) {
+    return `${Math.abs(diffDays)}d atraso`;
+  } else if (diffDays === 0) {
+    return 'hoje';
+  } else if (diffDays === 1) {
+    return 'amanhã';
+  } else {
+    return `${diffDays}d`;
+  }
+};
+
+/**
+ * Retorna a classe CSS apropriada baseada nos dias
+ * @param {number} diffDays - Diferença em dias
+ * @returns {string} Classe CSS
+ */
+export const getDaysCssClass = (diffDays) => {
+  if (diffDays < 0) return 'text-red-600 bg-red-100';
+  if (diffDays === 0) return 'text-orange-600 bg-orange-100';
+  if (diffDays === 1) return 'text-yellow-600 bg-yellow-100';
+  if (diffDays <= 3) return 'text-blue-600 bg-blue-100';
+  return 'text-gray-600 bg-gray-100';
+};
+
+/**
+ * Retorna a prioridade baseada nos dias
+ * @param {number} diffDays - Diferença em dias
+ * @returns {number} Prioridade (1 = alta, 5 = baixa)
+ */
+export const getDaysPriority = (diffDays) => {
+  if (diffDays < 0) return 1; // Vencida - prioridade máxima
+  if (diffDays === 0) return 2; // Vence hoje
+  if (diffDays === 1) return 3; // Vence amanhã
+  if (diffDays <= 3) return 4; // Vence em poucos dias
+  return 5; // Vence em muito tempo
+};
+
+/**
+ * Verifica se uma data está vencida
+ * @param {string} dateString - Data no formato YYYY-MM-DD
+ * @returns {boolean} True se vencida
+ */
+export const isOverdue = (dateString) => {
+  return getDaysDifference(dateString) < 0;
+};
+
+/**
+ * Verifica se uma data é hoje
+ * @param {string} dateString - Data no formato YYYY-MM-DD
+ * @returns {boolean} True se é hoje
+ */
+export const isToday = (dateString) => {
+  return getDaysDifference(dateString) === 0;
+};
+
+/**
+ * Adiciona dias a uma data
+ * @param {string} dateString - Data base no formato YYYY-MM-DD
+ * @param {number} days - Número de dias a adicionar
+ * @returns {string} Nova data no formato YYYY-MM-DD
+ */
+export const addDays = (dateString, days) => {
+  try {
+    const date = new Date(dateString + 'T00:00:00');
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('❌ Erro ao adicionar dias:', error);
+    return dateString;
+  }
+};
+
+/**
+ * Subtrai dias de uma data
+ * @param {string} dateString - Data base no formato YYYY-MM-DD
+ * @param {number} days - Número de dias a subtrair
+ * @returns {string} Nova data no formato YYYY-MM-DD
+ */
+export const subtractDays = (dateString, days) => {
+  try {
+    const date = new Date(dateString + 'T00:00:00');
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('❌ Erro ao subtrair dias:', error);
+    return dateString;
+  }
+};
+
+/**
+ * Obtém o primeiro dia do mês
+ * @param {Date} date - Data base
+ * @returns {Date} Primeiro dia do mês
+ */
+export const startOfMonth = (date) => {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+};
+
+/**
+ * Obtém o último dia do mês
+ * @param {Date} date - Data base
+ * @returns {Date} Último dia do mês
+ */
+export const endOfMonth = (date) => {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+};
+
+/**
+ * Obtém o primeiro dia do ano
+ * @param {Date} date - Data base
+ * @returns {Date} Primeiro dia do ano
+ */
+export const startOfYear = (date) => {
+  return new Date(date.getFullYear(), 0, 1);
+};
+
+/**
+ * Obtém o último dia do ano
+ * @param {Date} date - Data base
+ * @returns {Date} Último dia do ano
+ */
+export const endOfYear = (date) => {
+  return new Date(date.getFullYear(), 11, 31);
+};
+
+/**
+ * Converte uma data para o formato brasileiro com hora
+ * @param {string|Date} date - Data a ser formatada
+ * @returns {string} Data formatada com hora
+ */
+export const formatDateTime = (date) => {
+  if (!date) return '';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : new Date(date);
+    
+    if (isNaN(dateObj.getTime())) {
+      return 'Data inválida';
+    }
+    
+    return dateObj.toLocaleString('pt-BR');
+  } catch (error) {
+    console.error('❌ Erro ao formatar data/hora:', error);
+    return 'Erro na data';
+  }
+};
+
+/**
+ * Valida se uma string é uma data válida
+ * @param {string} dateString - String da data
+ * @returns {boolean} True se válida
+ */
+export const isValidDate = (dateString) => {
+  if (!dateString) return false;
+  
+  try {
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Obtém a próxima data de cobrança baseada na recorrência
+ * @param {string} lastDate - Última data de cobrança
+ * @param {string} recurrenceType - Tipo de recorrência
+ * @param {Object} options - Opções adicionais
+ * @returns {string} Próxima data no formato YYYY-MM-DD
+ */
+export const getNextBillingDate = (lastDate, recurrenceType, options = {}) => {
+  try {
+    const baseDate = new Date(lastDate + 'T00:00:00');
+    
+    switch (recurrenceType) {
+      case 'daily':
+        baseDate.setDate(baseDate.getDate() + 1);
+        break;
+        
+      case 'weekly':
+        baseDate.setDate(baseDate.getDate() + 7);
+        break;
+        
+      case 'monthly':
+        if (options.dayOfMonth) {
+          baseDate.setMonth(baseDate.getMonth() + 1);
+          baseDate.setDate(options.dayOfMonth);
+        } else {
+          baseDate.setMonth(baseDate.getMonth() + 1);
+        }
+        break;
+        
+      case 'custom':
+        const days = options.recurrenceDays || 30;
+        baseDate.setDate(baseDate.getDate() + days);
+        break;
+        
+      default:
+        throw new Error('Tipo de recorrência inválido');
+    }
+    
+    return baseDate.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('❌ Erro ao calcular próxima data:', error);
+    return addDays(lastDate, 30); // Fallback para 30 dias
+  }
+};
+
+/**
+ * Formata período para exibição (ex: "Últimos 30 dias")
+ * @param {number} days - Número de dias
+ * @returns {string} Período formatado
+ */
+export const formatPeriod = (days) => {
+  if (days === 1) return 'Hoje';
+  if (days === 7) return 'Últimos 7 dias';
+  if (days === 30) return 'Últimos 30 dias';
+  if (days === 365) return 'Último ano';
+  return `Últimos ${days} dias`;
+};
+
+/**
+ * Obtém a idade de uma data em relação a hoje
+ * @param {string} dateString - Data no formato YYYY-MM-DD
+ * @returns {Object} Informações sobre a idade
+ */
+export const getAge = (dateString) => {
+  const diffDays = Math.abs(getDaysDifference(dateString));
+  
+  if (diffDays === 0) return { text: 'hoje', value: 0, unit: 'day' };
+  if (diffDays === 1) return { text: '1 dia', value: 1, unit: 'day' };
+  if (diffDays < 7) return { text: `${diffDays} dias`, value: diffDays, unit: 'day' };
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return { text: `${weeks} semana${weeks > 1 ? 's' : ''}`, value: weeks, unit: 'week' };
+  }
+  if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return { text: `${months} mês${months > 1 ? 'es' : ''}`, value: months, unit: 'month' };
+  }
+  
+  const years = Math.floor(diffDays / 365);
+  return { text: `${years} ano${years > 1 ? 's' : ''}`, value: years, unit: 'year' };
 };

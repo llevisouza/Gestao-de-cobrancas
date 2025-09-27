@@ -2,33 +2,40 @@ import React, { useState } from 'react';
 import { useWhatsAppNotifications } from '../../hooks/useWhatsAppNotifications';
 import { formatCurrency } from '../../utils/formatters';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { ROUTES } from '../../utils/constants'; // Importar ROUTES
+import { ROUTES } from '../../utils/constants';
+import { 
+  calculatePendingNotificationsStandardized,
+  getStandardizedDaysInfo,
+  getNotificationInfo 
+} from '../../utils/invoiceStatusUtils';
 
-// CORREÇÃO: Adicionar 'onNavigate' como propriedade
 const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) => {
-  
-  // CORREÇÃO: Todos os hooks devem estar DENTRO do componente
   const {
     isConnected,
     loading,
     connectionStatus,
     sendOverdueNotification,
     sendReminderNotification,
-    calculatePendingNotifications,
     getConnectionStatusText
   } = useWhatsAppNotifications();
 
   const [sendingId, setSendingId] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
-  const pendingNotifications = calculatePendingNotifications(invoices, clients, subscriptions);
+  // Usa o utilitário padronizado para calcular notificações
+  const pendingNotifications = React.useMemo(() => {
+    return calculatePendingNotificationsStandardized(invoices, clients, subscriptions);
+  }, [invoices, clients, subscriptions]);
+
   const totalPending = pendingNotifications.total;
 
+  // Mostra notificações urgentes por padrão (overdue + alguns reminders)
   const urgentNotifications = [
     ...pendingNotifications.overdue.slice(0, 2),
     ...pendingNotifications.reminders.slice(0, 1)
   ].slice(0, 3);
 
+  // Todas as notificações para quando o usuário quiser ver tudo
   const allNotifications = [
     ...pendingNotifications.overdue,
     ...pendingNotifications.reminders,
@@ -39,6 +46,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
 
   const handleSendNotification = async (notification) => {
     const { type, invoice, client, subscription } = notification;
+
     setSendingId(invoice.id);
     
     try {
@@ -55,6 +63,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
       }
 
       if (result.success) {
+        // Feedback visual temporário
         const element = document.getElementById(`notification-${invoice.id}`);
         if (element) {
           element.style.backgroundColor = '#f0fdf4';
@@ -64,7 +73,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
             element.style.border = '';
           }, 3000);
         }
-        console.log(`✅ WhatsApp enviado para ${client.name}`);
+        console.log(`WhatsApp enviado para ${client.name}`);
       } else {
         alert(`Erro ao enviar WhatsApp: ${result.error}`);
       }
@@ -75,48 +84,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
     }
   };
 
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'overdue': return '🚨';
-      case 'reminder': return '🔔';
-      case 'new_invoice': return '📄';
-      default: return '📱';
-    }
-  };
-
-  const getTypeText = (type) => {
-    switch (type) {
-      case 'overdue': return 'Vencida';
-      case 'reminder': return 'Lembrete';
-      case 'new_invoice': return 'Nova';
-      default: return type;
-    }
-  };
-
-  const getDaysInfo = (notification) => {
-    const { type, invoice } = notification;
-    const today = new Date();
-    const dueDate = new Date(invoice.dueDate);
-    
-    if (type === 'overdue') {
-      const daysPast = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-      return {
-        text: `${daysPast} dias em atraso`,
-        color: 'text-red-600',
-        urgent: daysPast > 7
-      };
-    } else if (type === 'reminder') {
-      const daysLeft = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
-      return {
-        text: `Vence em ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'}`,
-        color: 'text-yellow-600',
-        urgent: daysLeft <= 1
-      };
-    }
-    
-    return { text: '', color: '', urgent: false };
-  };
-
+  // Se não há notificações pendentes
   if (totalPending === 0) {
     return (
       <div className="bg-white rounded-lg shadow border">
@@ -141,6 +109,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
 
   return (
     <div className="bg-white rounded-lg shadow border">
+      {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -162,11 +131,19 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
           </div>
         </div>
       </div>
+
+      {/* Lista de notificações */}
       <div className="divide-y divide-gray-200">
         {notificationsToShow.map((notification) => {
           const { invoice, client, subscription } = notification;
-          const daysInfo = getDaysInfo(notification);
           const isSending = sendingId === invoice.id;
+          
+          // Usa o utilitário padronizado para informações de dias
+          const daysInfo = getStandardizedDaysInfo(invoice);
+          
+          // Usa o utilitário padronizado para informações de notificação
+          const notificationInfo = getNotificationInfo(notification.type);
+
           return (
             <div
               key={invoice.id}
@@ -176,7 +153,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <span className="text-lg">{getTypeIcon(notification.type)}</span>
+                    <span className="text-lg">{notificationInfo.icon}</span>
                     <div>
                       <h4 className="font-medium text-gray-900">{client.name}</h4>
                       <div className="flex items-center space-x-2 text-sm text-gray-600">
@@ -186,20 +163,28 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
                       </div>
                     </div>
                   </div>
+                  
                   <div className="flex items-center space-x-4 text-xs text-gray-500">
-                    <span className={`font-medium ${daysInfo.color}`}>
+                    {/* Informação de dias usando utilitário padronizado */}
+                    <span className={`font-medium ${daysInfo.class}`}>
                       {daysInfo.text}
                     </span>
+                    
+                    {/* Informação da assinatura */}
                     {subscription && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                        🔄 {subscription.name}
+                        📄 {subscription.name}
                       </span>
                     )}
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                      {getTypeText(notification.type)}
+                    
+                    {/* Tipo da notificação */}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full ${notificationInfo.bgColor} ${notificationInfo.color}`}>
+                      {notificationInfo.text}
                     </span>
                   </div>
                 </div>
+
+                {/* Botão de envio */}
                 <div className="ml-4">
                   <button
                     onClick={() => handleSendNotification(notification)}
@@ -207,7 +192,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
                     className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                       !isConnected 
                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : daysInfo.urgent
+                        : notificationInfo.urgent
                         ? 'bg-red-600 text-white hover:bg-red-700'
                         : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
@@ -234,6 +219,8 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
           );
         })}
       </div>
+
+      {/* Footer com ações */}
       <div className="px-6 py-4 border-t border-gray-200">
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
@@ -244,6 +231,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
             )}
           </div>
           <div className="flex items-center space-x-3">
+            {/* Botão para ver mais/menos */}
             {totalPending > 3 && (
               <button
                 onClick={() => setShowAll(!showAll)}
@@ -252,6 +240,8 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
                 {showAll ? 'Ver menos' : `Ver todas (${totalPending})`}
               </button>
             )}
+            
+            {/* Botão para ir para página completa do WhatsApp */}
             <button
               onClick={() => onNavigate(ROUTES.WHATSAPP)}
               className="btn-primary text-sm"
@@ -260,6 +250,8 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
             </button>
           </div>
         </div>
+
+        {/* Aviso se WhatsApp não estiver conectado */}
         {!isConnected && (
           <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
             <div className="flex">

@@ -1,4 +1,4 @@
-// src/App.js - VERSÃO CORRIGIDA E OTIMIZADA
+// src/App.js - VERSÃO OTIMIZADA COM COMPONENTE WHATSAPP UNIFICADO
 import React, { useState, useEffect } from 'react';
 import { useFirebaseAuth } from './hooks/useFirebaseAuth';
 import { useFirestore } from './hooks/useFirestore';
@@ -12,7 +12,7 @@ import FirebaseSetup from './components/auth/FirebaseSetup';
 import Dashboard from './components/dashboard/Dashboard';
 import ClientsPage from './components/clients/ClientsPage';
 import ReportsPage from './components/reports/ReportsPage';
-import WhatsAppBillingManager from './components/notifications/WhatsAppBillingManager';
+import UnifiedWhatsAppManager from './components/whatsapp/UnifiedWhatsAppManager'; // ✅ Novo componente unificado
 import WhatsAppAutomationConfig from './components/whatsapp/WhatsAppAutomationConfig';
 
 // Estilos
@@ -149,9 +149,9 @@ function App() {
           />
         )}
 
-        {/* Componentes do WhatsApp agora recebem os dados corretos */}
+        {/* ✅ NOVO: Componente WhatsApp unificado */}
         {currentView === ROUTES.WHATSAPP && (
-          <WhatsAppBillingManager
+          <UnifiedWhatsAppManager
             invoices={invoices}
             clients={clients}
             subscriptions={subscriptions}
@@ -159,6 +159,7 @@ function App() {
           />
         )}
 
+        {/* Configuração avançada da automação (opcional) */}
         {currentView === ROUTES.WHATSAPP_AUTOMATION && (
           <WhatsAppAutomationConfig />
         )}

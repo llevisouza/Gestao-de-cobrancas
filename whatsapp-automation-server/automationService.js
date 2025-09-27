@@ -1,69 +1,36 @@
-// automationService.js - SUA LÓGICA ADAPTADA PARA BACKEND
+// automationService.js - VERSÃO MELHORADA COM MÉTODOS PARA API
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const cron = require('node-cron');
 const axios = require('axios');
 require('dotenv').config();
 
-// Inicializar Firebase Admin
-let db;
-try {
-  const serviceAccount = {
-    type: "service_account",
-    project_id: process.env.FIREBASE_PROJECT_ID,
-    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  };
-
-  const app = initializeApp({
-    credential: cert(serviceAccount),
-    projectId: process.env.FIREBASE_PROJECT_ID
-  });
-
-  db = getFirestore(app);
-  console.log('✅ Firebase Admin inicializado');
-} catch (error) {
-  console.error('❌ Erro ao inicializar Firebase Admin:', error);
-}
-
-// Utilitários de data
-const getCurrentDate = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getDaysDifference = (dateString1, dateString2 = null) => {
-  try {
-    const today = dateString2 || getCurrentDate();
-    
-    const date1Str = dateString1.includes('T') ? dateString1.split('T')[0] : dateString1;
-    const date2Str = today.includes('T') ? today.split('T')[0] : today;
-    
-    if (date1Str === date2Str) {
-      return 0;
-    }
-    
-    const [year1, month1, day1] = date1Str.split('-').map(Number);
-    const [year2, month2, day2] = date2Str.split('-').map(Number);
-    
-    const date1 = new Date(Date.UTC(year1, month1 - 1, day1));
-    const date2 = new Date(Date.UTC(year2, month2 - 1, day2));
-    
-    const diffTime = date1.getTime() - date2.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays;
-  } catch (error) {
-    console.error('❌ Erro ao calcular diferença de dias:', error);
-    return 0;
-  }
-};
-
 class WhatsAppAutomationService {
   constructor() {
+    // Initialize Firebase Admin
+    try {
+      const serviceAccount = {
+        type: 'service_account',
+        project_id: process.env.FIREBASE_PROJECT_ID,
+        private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      };
+
+      if (!serviceAccount.project_id || !serviceAccount.private_key || !serviceAccount.client_email) {
+        throw new Error('Missing Firebase credentials in environment variables');
+      }
+
+      const app = initializeApp({
+        credential: cert(serviceAccount),
+        projectId: process.env.FIREBASE_PROJECT_ID,
+      });
+      this.db = getFirestore(app);
+      console.log('✅ Firebase Admin inicializado');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar Firebase Admin:', error);
+      throw error;
+    }
+
     this.isRunning = false;
     this.intervalId = null;
     this.config = {
@@ -72,46 +39,84 @@ class WhatsAppAutomationService {
       businessHours: {
         start: 8, // 8h
         end: 18, // 18h
-        workDays: [1, 2, 3, 4, 5] // Segunda a Sexta
+        workDays: [1, 2, 3, 4, 5], // Segunda a Sexta
       },
       reminderDays: 3, // Lembrete 3 dias antes
       overdueScalation: [1, 3, 7, 15, 30], // Escalonamento em dias
       maxMessagesPerDay: 1, // Máximo 1 mensagem por cliente por dia
-      delayBetweenMessages: 5000 // 5 segundos entre mensagens
+      delayBetweenMessages: 5000, // 5 segundos entre mensagens
     };
-    
+
     this.stats = {
       messagesSent: 0,
       errors: 0,
       lastRun: null,
-      startTime: null
+      startTime: null,
     };
-    
+
     // Configuração WhatsApp da Evolution API
     this.whatsappConfig = {
       baseURL: process.env.WHATSAPP_API_URL || 'https://gestaodecobrancas.ddns.net',
       apiKey: process.env.WHATSAPP_API_KEY || '429683C4C977415CAAFCCE10F7D57E11',
-      instanceName: process.env.WHATSAPP_INSTANCE || 'main'
+      instanceName: process.env.WHATSAPP_INSTANCE || 'main',
     };
 
     console.log('🤖 WhatsApp Automation Service inicializado');
-    console.log(`    WhatsApp API: ${this.whatsappConfig.baseURL}`);
-    console.log(`    Instance: ${this.whatsappConfig.instanceName}`);
+    console.log(` WhatsApp API: ${this.whatsappConfig.baseURL}`);
+    console.log(` Instance: ${this.whatsappConfig.instanceName}`);
+
+    return {
+      success: true,
+      message: 'Automação inicializada com sucesso',
+    };
+  }
+
+  // Utilitários de data
+  getCurrentDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  getDaysDifference(dateString1, dateString2 = null) {
+    try {
+      const today = dateString2 || this.getCurrentDate();
+      const date1Str = dateString1.includes('T') ? dateString1.split('T')[0] : dateString1;
+      const date2Str = today.includes('T') ? today.split('T')[0] : today;
+
+      if (date1Str === date2Str) {
+        return 0;
+      }
+
+      const [year1, month1, day1] = date1Str.split('-').map(Number);
+      const [year2, month2, day2] = date2Str.split('-').map(Number);
+
+      const date1 = new Date(Date.UTC(year1, month1 - 1, day1));
+      const date2 = new Date(Date.UTC(year2, month2 - 1, day2));
+
+      const diffTime = date1.getTime() - date2.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      return diffDays;
+    } catch (error) {
+      console.error('❌ Erro ao calcular diferença de dias:', error);
+      return 0;
+    }
   }
 
   // =============================================
   // CONTROLES PRINCIPAIS
   // =============================================
-
   async startAutomation() {
     if (this.isRunning) {
       console.warn('⚠️ Automação já está rodando');
       return { success: false, error: 'Automação já está ativa' };
     }
-
     try {
       console.log('🤖 Iniciando automação WhatsApp...');
-      
+
       // Verificar se WhatsApp está conectado
       const connectionStatus = await this.checkWhatsAppConnection();
       if (!connectionStatus.connected) {
@@ -133,26 +138,26 @@ class WhatsAppAutomationService {
       }, this.config.checkInterval);
 
       console.log('✅ Automação WhatsApp iniciada com sucesso');
-      
+
       // Salvar log
       await this.saveAutomationLog('automation_started', {
         config: this.config,
-        startTime: this.stats.startTime
+        startTime: this.stats.startTime,
       });
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: 'Automação iniciada com sucesso',
-        config: this.config
+        config: this.config,
       };
     } catch (error) {
       console.error('❌ Erro ao iniciar automação:', error);
       this.isRunning = false;
       this.config.enabled = false;
-      
-      return { 
-        success: false, 
-        error: error.message 
+
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }
@@ -162,53 +167,52 @@ class WhatsAppAutomationService {
       console.warn('⚠️ Automação não está rodando');
       return { success: false, error: 'Automação não está ativa' };
     }
-
     try {
       console.log('🛑 Parando automação WhatsApp...');
-      
+
       this.isRunning = false;
       this.config.enabled = false;
-      
+
       if (this.intervalId) {
         clearInterval(this.intervalId);
         this.intervalId = null;
       }
 
       console.log('✅ Automação WhatsApp parada');
-      
+
       // Salvar log
       await this.saveAutomationLog('automation_stopped', {
         stats: this.stats,
-        duration: new Date() - this.stats.startTime
+        duration: new Date() - this.stats.startTime,
       });
 
-      return { 
-        success: true, 
-        message: 'Automação parada com sucesso' 
+      return {
+        success: true,
+        message: 'Automação parada com sucesso',
       };
     } catch (error) {
       console.error('❌ Erro ao parar automação:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }
 
   async runManualCycle() {
     console.log('🔄 Executando ciclo manual de automação...');
-    
+
     try {
       const result = await this.runAutomationCycle();
       return {
         success: true,
-        ...result
+        ...result,
       };
     } catch (error) {
       console.error('❌ Erro no ciclo manual:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -216,7 +220,6 @@ class WhatsAppAutomationService {
   // =============================================
   // CICLO DE AUTOMAÇÃO
   // =============================================
-
   async runAutomationCycle() {
     try {
       console.log('🔄 Executando ciclo de automação...');
@@ -228,7 +231,7 @@ class WhatsAppAutomationService {
         return {
           skipped: true,
           reason: 'Fora do horário comercial',
-          nextCheck: this.getNextBusinessHour()
+          nextCheck: this.getNextBusinessHour(),
         };
       }
 
@@ -242,19 +245,18 @@ class WhatsAppAutomationService {
       const [clients, invoices, subscriptions] = await Promise.all([
         this.getClients(),
         this.getInvoices(),
-        this.getSubscriptions()
+        this.getSubscriptions(),
       ]);
 
       // Calcular notificações pendentes
       const pendingNotifications = await this.calculatePendingNotifications(
-        invoices, 
-        clients, 
+        invoices,
+        clients,
         subscriptions
       );
 
       // Filtrar notificações que não foram enviadas hoje
       const filteredNotifications = await this.filterTodaysMessages(pendingNotifications);
-
       console.log(`📊 Notificações encontradas: ${filteredNotifications.length}`);
 
       let sent = 0;
@@ -271,7 +273,6 @@ class WhatsAppAutomationService {
             errors++;
             this.stats.errors++;
           }
-
           // Delay entre mensagens
           if (filteredNotifications.indexOf(notification) < filteredNotifications.length - 1) {
             await this.delay(this.config.delayBetweenMessages);
@@ -288,24 +289,22 @@ class WhatsAppAutomationService {
         sent,
         errors,
         timestamp: new Date(),
-        businessHours: true
+        businessHours: true,
       };
 
       // Salvar log do ciclo
       await this.saveAutomationLog('cycle_completed', cycleResult);
-
       console.log(`✅ Ciclo concluído: ${sent} enviados, ${errors} erros`);
 
       return cycleResult;
     } catch (error) {
       console.error('❌ Erro no ciclo de automação:', error);
       this.stats.errors++;
-      
+
       await this.saveAutomationLog('cycle_error', {
         error: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-
       throw error;
     }
   }
@@ -313,7 +312,6 @@ class WhatsAppAutomationService {
   // =============================================
   // PROCESSAMENTO DE NOTIFICAÇÕES
   // =============================================
-
   async calculatePendingNotifications(invoices, clients, subscriptions) {
     const today = new Date();
     const notifications = [];
@@ -321,11 +319,11 @@ class WhatsAppAutomationService {
     for (const invoice of invoices) {
       if (!['pending', 'overdue'].includes(invoice.status)) continue;
 
-      const client = clients.find(c => c.id === invoice.clientId);
+      const client = clients.find((c) => c.id === invoice.clientId);
       if (!client || !client.phone) continue;
 
-      const subscription = subscriptions.find(s => s.id === invoice.subscriptionId);
-      const daysDiff = getDaysDifference(invoice.dueDate);
+      const subscription = subscriptions.find((s) => s.id === invoice.subscriptionId);
+      const daysDiff = this.getDaysDifference(invoice.dueDate);
 
       // Lembretes (antes do vencimento)
       if (daysDiff >= 0 && daysDiff <= this.config.reminderDays) {
@@ -335,14 +333,14 @@ class WhatsAppAutomationService {
           invoice,
           client,
           subscription,
-          daysDiff
+          daysDiff,
         });
       }
 
       // Cobranças vencidas (escalonamento)
       if (daysDiff < 0) {
         const daysOverdue = Math.abs(daysDiff);
-        
+
         if (this.config.overdueScalation.includes(daysOverdue)) {
           notifications.push({
             type: 'overdue',
@@ -350,20 +348,20 @@ class WhatsAppAutomationService {
             invoice,
             client,
             subscription,
-            daysOverdue
+            daysOverdue,
           });
         }
       }
 
       // Novas faturas (geradas hoje)
-      if (invoice.generationDate === getCurrentDate() && invoice.status === 'pending') {
+      if (invoice.generationDate === this.getCurrentDate() && invoice.status === 'pending') {
         notifications.push({
           type: 'new_invoice',
           priority: 3,
           invoice,
           client,
           subscription,
-          daysDiff: 0
+          daysDiff: 0,
         });
       }
     }
@@ -374,31 +372,23 @@ class WhatsAppAutomationService {
 
   async filterTodaysMessages(notifications) {
     const filtered = [];
-
     for (const notification of notifications) {
-      const alreadySent = await this.wasMessageSentToday(
-        notification.client.id,
-        notification.type
-      );
-
+      const alreadySent = await this.wasMessageSentToday(notification.client.id, notification.type);
       if (!alreadySent) {
         filtered.push(notification);
       } else {
         console.log(`⏭️ Mensagem já enviada hoje: ${notification.type} para ${notification.client.name}`);
       }
     }
-
     return filtered;
   }
 
   async processNotification(notification) {
     const { type, invoice, client, subscription } = notification;
-    
-    console.log(`📤 Processando: ${type} para ${client.name}`);
 
+    console.log(`📤 Processando: ${type} para ${client.name}`);
     try {
       let result;
-
       switch (type) {
         case 'overdue':
           result = await this.sendOverdueNotification(invoice, client, subscription);
@@ -415,27 +405,165 @@ class WhatsAppAutomationService {
 
       // Log da notificação processada
       await this.saveNotificationLog(notification, result);
-
       return result;
     } catch (error) {
       console.error(`❌ Erro ao processar ${type} para ${client.name}:`, error);
-      
+
       await this.saveNotificationLog(notification, {
         success: false,
-        error: error.message
+        error: error.message,
       });
-
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   // =============================================
+  // NOVOS MÉTODOS PARA A API
+  // =============================================
+  async getQRCode() {
+    try {
+      const response = await axios.get(
+        `${this.whatsappConfig.baseURL}/instance/connect/${this.whatsappConfig.instanceName}`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: this.whatsappConfig.apiKey,
+          },
+        }
+      );
+
+      if (!response.data) {
+        throw new Error('Resposta vazia da API');
+      }
+
+      return {
+        success: true,
+        qrCode: response.data.base64 || response.data.qrcode?.base64,
+        pairingCode: response.data.pairingCode || response.data.code,
+      };
+    } catch (error) {
+      console.error('❌ Erro ao obter QR Code:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  async testConnection(testPhone = null) {
+    try {
+      const connectionCheck = await this.checkWhatsAppConnection();
+
+      if (!connectionCheck.connected) {
+        return {
+          connection: connectionCheck,
+          testResult: null,
+        };
+      }
+
+      let testResult = null;
+
+      if (testPhone) {
+        // Enviar mensagem de teste
+        const cleanPhone = this.formatPhoneNumber(testPhone);
+        testResult = await this.sendWhatsAppMessage(
+          cleanPhone,
+          '🧪 *Teste de Conexão*\n\nSua API WhatsApp está funcionando perfeitamente!\n\n✅ Sistema: Conexão Delivery\n📱 Integração: Evolution API'
+        );
+      }
+
+      return {
+        connection: connectionCheck,
+        testResult,
+      };
+    } catch (error) {
+      console.error('❌ Erro no teste de conexão:', error);
+      return {
+        connection: { connected: false, error: error.message },
+        testResult: { success: false, error: error.message },
+      };
+    }
+  }
+
+  async getMessageHistory(clientId, limitCount = 10) {
+    try {
+      const snapshot = await this.db
+        .collection('notification_logs')
+        .where('clientId', '==', clientId)
+        .orderBy('timestamp', 'desc')
+        .limit(limitCount)
+        .get();
+
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate(),
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar histórico:', error);
+      return [];
+    }
+  }
+
+  async getMessagingStats(days = 30) {
+    try {
+      const since = new Date();
+      since.setDate(since.getDate() - days);
+      const snapshot = await this.db
+        .collection('notification_logs')
+        .where('timestamp', '>=', since)
+        .get();
+
+      const logs = snapshot.docs.map((doc) => doc.data());
+      const total = logs.length;
+      const successful = logs.filter((log) => log.result?.success).length;
+      const failed = total - successful;
+      const successRate = total > 0 ? Math.round((successful / total) * 100) : 0;
+
+      return {
+        total,
+        successful,
+        failed,
+        successRate,
+        period: `${days} dias`,
+      };
+    } catch (error) {
+      console.error('❌ Erro ao obter estatísticas:', error);
+      return {
+        total: 0,
+        successful: 0,
+        failed: 0,
+        successRate: 0,
+        period: `${days} dias`,
+      };
+    }
+  }
+
+  async sendPaymentConfirmation(invoice, client, subscription = null) {
+    const message = `✅ *PAGAMENTO CONFIRMADO* ✅
+*${client.name}*, seu pagamento foi confirmado! 🎉
+💰 *COMPROVANTE DE PAGAMENTO*
+✅ Status: *PAGO*
+💵 Valor: *R$ ${parseFloat(invoice.amount).toFixed(2).replace('.', ',')}*
+📅 Pago em: ${this.formatDate(invoice.paidDate || this.getCurrentDate())}
+🆔 Código: #${invoice.id?.substring(0, 8)}
+${subscription ? `🔄 *PLANO RENOVADO: ${subscription.name}*\nVálido até a próxima cobrança\nStatus: Ativo e funcionando ✅\n` : ''}
+🎯 *PRÓXIMOS PASSOS:*
+• ✅ Pagamento processado
+• 📱 Comprovante salvo
+• 🔄 Próxima fatura em breve
+• 🏆 Obrigado pela preferência!
+📞 ${process.env.COMPANY_NAME || 'Conexão Delivery'} - ${process.env.COMPANY_PHONE || '(11) 99999-9999'}`;
+
+    return await this.sendWhatsAppMessage(client.phone, message);
+  }
+
+  // =============================================
   // WHATSAPP SERVICE METHODS
   // =============================================
-
   async checkWhatsAppConnection() {
     try {
       const response = await axios.get(
@@ -443,8 +571,8 @@ class WhatsAppAutomationService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'apikey': this.whatsappConfig.apiKey
-          }
+            apikey: this.whatsappConfig.apiKey,
+          },
         }
       );
 
@@ -452,7 +580,7 @@ class WhatsAppAutomationService {
         connected: response.data.instance?.state === 'open',
         state: response.data.instance?.state || 'disconnected',
         instanceName: this.whatsappConfig.instanceName,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
     } catch (error) {
       console.error('❌ Erro ao verificar conexão WhatsApp:', error);
@@ -460,7 +588,7 @@ class WhatsAppAutomationService {
         connected: false,
         state: 'error',
         error: error.message,
-        instanceName: this.whatsappConfig.instanceName
+        instanceName: this.whatsappConfig.instanceName,
       };
     }
   }
@@ -468,12 +596,16 @@ class WhatsAppAutomationService {
   async sendWhatsAppMessage(phone, message) {
     try {
       const cleanPhone = this.formatPhoneNumber(phone);
-      
+
+      if (!cleanPhone) {
+        throw new Error('Número de telefone inválido');
+      }
+
       const messageData = {
         number: cleanPhone,
         textMessage: {
-          text: message
-        }
+          text: message,
+        },
       };
 
       const response = await axios.post(
@@ -482,74 +614,61 @@ class WhatsAppAutomationService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'apikey': this.whatsappConfig.apiKey
-          }
+            apikey: this.whatsappConfig.apiKey,
+          },
         }
       );
 
       console.log(`✅ Mensagem WhatsApp enviada para ${phone}`);
-
       return {
         success: true,
         messageId: response.data.key?.id || response.data.messageId,
-        response: response.data
+        response: response.data,
       };
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem WhatsApp:', error);
-      
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   async sendOverdueNotification(invoice, client, subscription = null) {
-    const daysOverdue = Math.abs(getDaysDifference(invoice.dueDate));
-    
+    const daysOverdue = Math.abs(this.getDaysDifference(invoice.dueDate));
+
     const message = `🚨 *FATURA VENCIDA* 🚨
-
 Olá *${client.name}*! 👋
-
 Sua fatura está *${daysOverdue} dias em atraso* e precisa ser regularizada.
-
 💰 *RESUMO DA COBRANÇA*
 💵 Valor: *R$ ${parseFloat(invoice.amount).toFixed(2).replace('.', ',')}*
 📅 Vencimento: ${this.formatDate(invoice.dueDate)}
 ⚠️ Dias em atraso: *${daysOverdue} dias*
 🆔 Código: #${invoice.id?.substring(0, 8)}
-
 ${subscription ? `🔄 *PLANO: ${subscription.name}*\n` : ''}
 💳 *PAGUE AGORA VIA PIX*
 🔑 Chave PIX: *${process.env.COMPANY_PIX_KEY || '11999999999'}*
-
 📞 ${process.env.COMPANY_NAME || 'Conexão Delivery'} - ${process.env.COMPANY_PHONE || '(11) 99999-9999'}`;
 
     return await this.sendWhatsAppMessage(client.phone, message);
   }
 
   async sendReminderNotification(invoice, client, subscription = null) {
-    const daysUntil = getDaysDifference(invoice.dueDate);
-    const daysText = daysUntil === 0 ? 'hoje' : 
-                     daysUntil === 1 ? '1 dia' : 
-                     `${daysUntil} dias`;
-    
+    const daysUntil = this.getDaysDifference(invoice.dueDate);
+    const daysText =
+      daysUntil === 0 ? 'hoje' : daysUntil === 1 ? '1 dia' : `${daysUntil} dias`;
+
     const message = `🔔 *LEMBRETE DE PAGAMENTO* 🔔
-
 Oi *${client.name}*! 😊
-
 Sua fatura vence em *${daysText}*. Que tal já garantir o pagamento?
-
 💰 *DETALHES DO PAGAMENTO*
 💵 Valor: *R$ ${parseFloat(invoice.amount).toFixed(2).replace('.', ',')}*
 📅 Vencimento: ${this.formatDate(invoice.dueDate)}
 ⏰ Faltam: *${daysText}*
 🆔 Código: #${invoice.id?.substring(0, 8)}
-
 ${subscription ? `🔄 *PLANO: ${subscription.name}*\n` : ''}
 💳 *PIX PARA PAGAMENTO*
 🔑 Chave PIX: *${process.env.COMPANY_PIX_KEY || '11999999999'}*
-
 📞 ${process.env.COMPANY_NAME || 'Conexão Delivery'} - ${process.env.COMPANY_PHONE || '(11) 99999-9999'}`;
 
     return await this.sendWhatsAppMessage(client.phone, message);
@@ -557,21 +676,16 @@ ${subscription ? `🔄 *PLANO: ${subscription.name}*\n` : ''}
 
   async sendNewInvoiceNotification(invoice, client, subscription = null) {
     const message = `📄 *NOVA FATURA DISPONÍVEL* 📄
-
 Olá *${client.name}*! 👋
-
 Uma nova fatura foi gerada para você!
-
 💰 *INFORMAÇÕES DA FATURA*
 💵 Valor: *R$ ${parseFloat(invoice.amount).toFixed(2).replace('.', ',')}*
 📅 Vencimento: ${this.formatDate(invoice.dueDate)}
-📋 Gerada em: ${this.formatDate(invoice.generationDate || getCurrentDate())}
+📋 Gerada em: ${this.formatDate(invoice.generationDate || this.getCurrentDate())}
 🆔 Código: #${invoice.id?.substring(0, 8)}
-
 ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamento ✅\n` : ''}
 💳 *PAGAMENTO VIA PIX*
 🔑 Chave PIX: *${process.env.COMPANY_PIX_KEY || '11999999999'}*
-
 📞 ${process.env.COMPANY_NAME || 'Conexão Delivery'} - ${process.env.COMPANY_PHONE || '(11) 99999-9999'}`;
 
     return await this.sendWhatsAppMessage(client.phone, message);
@@ -580,7 +694,6 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
   // =============================================
   // FUNÇÕES AUXILIARES
   // =============================================
-
   isBusinessHours() {
     const now = new Date();
     const hour = now.getHours();
@@ -600,20 +713,26 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(this.config.businessHours.start, 0, 0, 0);
-    
+
     return tomorrow;
   }
 
   async delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   formatPhoneNumber(phone) {
     if (!phone) return '';
-    
+
     // Remove todos os caracteres não numéricos
     let cleanPhone = phone.replace(/\D/g, '');
-    
+
+    // Verifica se o número tem pelo menos 10 dígitos (considerando DDD + número)
+    if (cleanPhone.length < 10) {
+      console.warn(`⚠️ Número de telefone inválido: ${phone}`);
+      return '';
+    }
+
     // Se não começar com 55 (Brasil), adiciona
     if (!cleanPhone.startsWith('55')) {
       // Se começar com 0, remove
@@ -623,32 +742,32 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
       // Adiciona código do Brasil
       cleanPhone = '55' + cleanPhone;
     }
-    
+
     return cleanPhone;
   }
 
   formatDate(dateInput) {
     if (!dateInput) return '';
-    
+
     try {
       let date;
-      
+
       if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
         const [year, month, day] = dateInput.split('-').map(Number);
         date = new Date(Date.UTC(year, month - 1, day));
       } else {
         date = new Date(dateInput);
       }
-      
+
       if (isNaN(date.getTime())) {
         return dateInput.toString();
       }
-      
+
       return date.toLocaleDateString('pt-BR', {
         timeZone: 'UTC',
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric'
+        year: 'numeric',
       });
     } catch (error) {
       console.error('Erro ao formatar data:', error, dateInput);
@@ -659,13 +778,12 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
   // =============================================
   // ACESSO AOS DADOS (FIREBASE FIRESTORE)
   // =============================================
-
   async getClients() {
     try {
-      const snapshot = await db.collection('clients').get();
-      return snapshot.docs.map(doc => ({
+      const snapshot = await this.db.collection('clients').get();
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
       console.error('❌ Erro ao buscar clientes:', error);
@@ -675,10 +793,10 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
 
   async getInvoices() {
     try {
-      const snapshot = await db.collection('invoices').get();
-      return snapshot.docs.map(doc => ({
+      const snapshot = await this.db.collection('invoices').get();
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
       console.error('❌ Erro ao buscar faturas:', error);
@@ -688,10 +806,10 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
 
   async getSubscriptions() {
     try {
-      const snapshot = await db.collection('subscriptions').get();
-      return snapshot.docs.map(doc => ({
+      const snapshot = await this.db.collection('subscriptions').get();
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
       console.error('❌ Erro ao buscar assinaturas:', error);
@@ -702,11 +820,28 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
   // =============================================
   // CONFIGURAÇÕES
   // =============================================
-
   updateConfig(newConfig) {
+    // Validação básica das configurações
+    if (newConfig.checkInterval && newConfig.checkInterval < 1000) {
+      console.warn('⚠️ Intervalo de verificação muito curto, usando mínimo de 1000ms');
+      newConfig.checkInterval = 1000;
+    }
+
+    if (newConfig.businessHours) {
+      if (
+        newConfig.businessHours.start < 0 ||
+        newConfig.businessHours.start > 23 ||
+        newConfig.businessHours.end < 0 ||
+        newConfig.businessHours.end > 23
+      ) {
+        console.warn('⚠️ Horário comercial inválido, mantendo configuração atual');
+        delete newConfig.businessHours;
+      }
+    }
+
     this.config = { ...this.config, ...newConfig };
     console.log('⚙️ Configuração da automação atualizada:', this.config);
-    
+
     // Se estava rodando, reiniciar com nova configuração
     if (this.isRunning) {
       this.stopAutomation().then(() => {
@@ -724,21 +859,20 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
       ...this.stats,
       isRunning: this.isRunning,
       uptime: this.stats.startTime ? new Date() - this.stats.startTime : 0,
-      config: this.config
+      config: this.config,
     };
   }
 
   // =============================================
   // LOGS E HISTÓRICO
   // =============================================
-
   async saveAutomationLog(action, data = {}) {
     try {
-      await db.collection('automation_logs').add({
+      await this.db.collection('automation_logs').add({
         action,
         data,
         timestamp: new Date(),
-        service: 'whatsapp_automation'
+        service: 'whatsapp_automation',
       });
     } catch (error) {
       console.error('❌ Erro ao salvar log da automação:', error);
@@ -747,7 +881,7 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
 
   async saveNotificationLog(notification, result) {
     try {
-      await db.collection('notification_logs').add({
+      await this.db.collection('notification_logs').add({
         type: notification.type,
         clientId: notification.client.id,
         clientName: notification.client.name,
@@ -756,7 +890,7 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
         subscriptionId: notification.subscription?.id || null,
         result,
         automated: true,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     } catch (error) {
       console.error('❌ Erro ao salvar log de notificação:', error);
@@ -765,16 +899,17 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
 
   async getAutomationLogs(limitCount = 50) {
     try {
-      const snapshot = await db.collection('automation_logs')
+      const snapshot = await this.db
+        .collection('automation_logs')
         .where('service', '==', 'whatsapp_automation')
         .orderBy('timestamp', 'desc')
         .limit(limitCount)
         .get();
-      
-      return snapshot.docs.map(doc => ({
+
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
+        timestamp: doc.data().timestamp?.toDate(),
       }));
     } catch (error) {
       console.error('❌ Erro ao buscar logs:', error);
@@ -786,13 +921,14 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
-      const snapshot = await db.collection('notification_logs')
+
+      const snapshot = await this.db
+        .collection('notification_logs')
         .where('clientId', '==', clientId)
         .where('type', '==', type)
         .where('timestamp', '>=', today)
         .get();
-      
+
       return !snapshot.empty;
     } catch (error) {
       console.error('❌ Erro ao verificar mensagem do dia:', error);
@@ -803,16 +939,15 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
   // =============================================
   // TESTES E DIAGNÓSTICOS
   // =============================================
-
   async testAutomation() {
     console.log('🧪 Testando automação (modo dry-run)...');
-    
+
     try {
       // Buscar dados
       const [clients, invoices, subscriptions] = await Promise.all([
         this.getClients(),
         this.getInvoices(),
-        this.getSubscriptions()
+        this.getSubscriptions(),
       ]);
 
       // Calcular notificações
@@ -833,14 +968,14 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
         filteredNotifications: filteredNotifications.length,
         businessHours: this.isBusinessHours(),
         whatsappConnected: (await this.checkWhatsAppConnection()).connected,
-        notifications: filteredNotifications.map(n => ({
+        notifications: filteredNotifications.map((n) => ({
           type: n.type,
           client: n.client.name,
           amount: n.invoice.amount,
           dueDate: n.invoice.dueDate,
-          priority: n.priority
+          priority: n.priority,
         })),
-        config: this.config
+        config: this.config,
       };
 
       console.log('✅ Teste da automação concluído:', testResult);
@@ -849,7 +984,7 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
       console.error('❌ Erro no teste da automação:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -860,17 +995,17 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
         running: this.isRunning,
         enabled: this.config.enabled,
         lastRun: this.stats.lastRun,
-        errors: this.stats.errors
+        errors: this.stats.errors,
       },
       whatsapp: await this.checkWhatsAppConnection(),
       businessHours: this.isBusinessHours(),
-      database: true, // Assume que está ok se chegou até aqui
-      timestamp: new Date()
+      database: true,
+      timestamp: new Date(),
     };
 
     try {
       // Testar acesso ao banco
-      await db.collection('clients').limit(1).get();
+      await this.db.collection('clients').limit(1).get();
     } catch (error) {
       health.database = false;
       health.databaseError = error.message;
@@ -883,35 +1018,37 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
     try {
       const since = new Date();
       since.setDate(since.getDate() - days);
-
-      const snapshot = await db.collection('notification_logs')
+      const snapshot = await this.db
+        .collection('notification_logs')
         .where('automated', '==', true)
         .where('timestamp', '>=', since)
         .get();
 
-      const logs = snapshot.docs.map(doc => ({
+      const logs = snapshot.docs.map((doc) => ({
         ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
+        timestamp: doc.data().timestamp?.toDate(),
       }));
 
       const report = {
         period: `${days} dias`,
         totalNotifications: logs.length,
-        successful: logs.filter(log => log.result?.success).length,
-        failed: logs.filter(log => !log.result?.success).length,
+        successful: logs.filter((log) => log.result?.success).length,
+        failed: logs.filter((log) => !log.result?.success).length,
         byType: {
-          overdue: logs.filter(log => log.type === 'overdue').length,
-          reminder: logs.filter(log => log.type === 'reminder').length,
-          new_invoice: logs.filter(log => log.type === 'new_invoice').length
+          overdue: logs.filter((log) => log.type === 'overdue').length,
+          reminder: logs.filter((log) => log.type === 'reminder').length,
+          new_invoice: logs.filter((log) => log.type === 'new_invoice').length,
         },
         byDay: this.groupLogsByDay(logs),
-        errors: logs.filter(log => !log.result?.success).map(log => ({
-          client: log.clientName,
-          type: log.type,
-          error: log.result?.error,
-          timestamp: log.timestamp
-        })),
-        stats: this.getStats()
+        errors: logs
+          .filter((log) => !log.result?.success)
+          .map((log) => ({
+            client: log.clientName,
+            type: log.type,
+            error: log.result?.error,
+            timestamp: log.timestamp,
+          })),
+        stats: this.getStats(),
       };
 
       return report;
@@ -919,20 +1056,20 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
       console.error('❌ Erro ao gerar relatório:', error);
       return {
         error: error.message,
-        period: `${days} dias`
+        period: `${days} dias`,
       };
     }
   }
 
   groupLogsByDay(logs) {
     const grouped = {};
-    
-    logs.forEach(log => {
+
+    logs.forEach((log) => {
       const day = log.timestamp?.toISOString().split('T')[0];
       if (!grouped[day]) {
         grouped[day] = { total: 0, successful: 0, failed: 0 };
       }
-      
+
       grouped[day].total++;
       if (log.result?.success) {
         grouped[day].successful++;
@@ -947,7 +1084,6 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
   // =============================================
   // CONTROLES DE EMERGÊNCIA
   // =============================================
-
   pause() {
     this.config.enabled = false;
     console.log('⏸️ Automação pausada temporariamente');
@@ -960,37 +1096,54 @@ ${subscription ? `🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamen
 
   async reset() {
     console.log('🔄 Fazendo reset da automação...');
-    
-    await this.stopAutomation();
-    
-    this.stats = {
-      messagesSent: 0,
-      errors: 0,
-      lastRun: null,
-      startTime: null
-    };
 
-    this.config = {
-      enabled: false,
-      checkInterval: 60000,
-      businessHours: {
-        start: 8,
-        end: 18,
-        workDays: [1, 2, 3, 4, 5]
-      },
-      reminderDays: 3,
-      overdueScalation: [1, 3, 7, 15, 30],
-      maxMessagesPerDay: 1,
-      delayBetweenMessages: 5000
-    };
+    try {
+      // Parar a automação
+      await this.stopAutomation();
 
-    console.log('✅ Reset da automação concluído');
-    
-    return {
-      success: true,
-      message: 'Automação resetada com sucesso'
-    };
+      // Resetar estatísticas
+      this.stats = {
+        messagesSent: 0,
+        errors: 0,
+        lastRun: null,
+        startTime: null,
+      };
+
+      // Resetar configuração para valores padrão
+      this.config = {
+        enabled: false,
+        checkInterval: 60000, // 1 minuto
+        businessHours: {
+          start: 8, // 8h
+          end: 18, // 18h
+          workDays: [1, 2, 3, 4, 5], // Segunda a Sexta
+        },
+        reminderDays: 3, // Lembrete 3 dias antes
+        overdueScalation: [1, 3, 7, 15, 30], // Escalonamento em dias
+        maxMessagesPerDay: 1, // Máximo 1 mensagem por cliente por dia
+        delayBetweenMessages: 5000, // 5 segundos entre mensagens
+      };
+
+      // Salvar log do reset
+      await this.saveAutomationLog('automation_reset', {
+        timestamp: new Date(),
+        config: this.config,
+      });
+
+      console.log('✅ Reset da automação concluído');
+      return {
+        success: true,
+        message: 'Automação resetada com sucesso',
+        config: this.config,
+      };
+    } catch (error) {
+      console.error('❌ Erro ao resetar automação:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
   }
 }
 
-module.exports = { WhatsAppAutomationService };
+module.exports = WhatsAppAutomationService;

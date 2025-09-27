@@ -1,4 +1,4 @@
-// server.js - SERVIDOR PRINCIPAL PARA VM
+// server.js - SERVIDOR PRINCIPAL REFATORADO COM ENDPOINTS DE MESSAGING
 const express = require('express');
 const cors = require('cors');
 const { WhatsAppAutomationService } = require('./automationService');
@@ -11,8 +11,8 @@ const port = process.env.PORT || 3001;
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'http://localhost:3001', 
-    'https://your-frontend-domain.com' // Adicione seu domínio do frontend
+    'http://localhost:3001',
+    'https://your-frontend-domain.com'
   ],
   credentials: true
 }));
@@ -64,6 +64,326 @@ app.get('/api/whatsapp/status', async (req, res) => {
     res.json({
       success: true,
       whatsapp: status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==================== ENDPOINTS DE MENSAGENS (NOVOS) ====================
+
+// Verificar conexão WhatsApp
+app.get('/api/messages/connection', async (req, res) => {
+  try {
+    const status = await automationService.checkWhatsAppConnection();
+    res.json({
+      success: true,
+      connection: status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Obter QR Code para conexão
+app.get('/api/messages/qr-code', async (req, res) => {
+  try {
+    const result = await automationService.getQRCode();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Testar conexão (com envio opcional)
+app.post('/api/messages/test', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const result = await automationService.testConnection(phone);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enviar mensagem individual
+app.post('/api/messages/send', async (req, res) => {
+  try {
+    const { phone, message, type = 'manual' } = req.body;
+    
+    if (!phone || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Telefone e mensagem são obrigatórios'
+      });
+    }
+
+    const result = await automationService.sendWhatsAppMessage(phone, message);
+    
+    // Log da mensagem manual
+    if (result.success) {
+      await automationService.saveNotificationLog({
+        type: type,
+        invoice: { id: 'manual', amount: 0 },
+        client: { id: 'manual', name: 'Manual', phone: phone }
+      }, result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enviar notificação de fatura vencida
+app.post('/api/messages/overdue', async (req, res) => {
+  try {
+    const { invoice, client, subscription } = req.body;
+    
+    if (!invoice || !client) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados da fatura e cliente são obrigatórios'
+      });
+    }
+
+    const result = await automationService.sendOverdueNotification(invoice, client, subscription);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enviar lembrete de vencimento
+app.post('/api/messages/reminder', async (req, res) => {
+  try {
+    const { invoice, client, subscription } = req.body;
+    
+    if (!invoice || !client) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados da fatura e cliente são obrigatórios'
+      });
+    }
+
+    const result = await automationService.sendReminderNotification(invoice, client, subscription);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enviar notificação de nova fatura
+app.post('/api/messages/new-invoice', async (req, res) => {
+  try {
+    const { invoice, client, subscription } = req.body;
+    
+    if (!invoice || !client) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados da fatura e cliente são obrigatórios'
+      });
+    }
+
+    const result = await automationService.sendNewInvoiceNotification(invoice, client, subscription);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enviar confirmação de pagamento
+app.post('/api/messages/payment-confirmed', async (req, res) => {
+  try {
+    const { invoice, client, subscription } = req.body;
+    
+    if (!invoice || !client) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados da fatura e cliente são obrigatórios'
+      });
+    }
+
+    const result = await automationService.sendPaymentConfirmation(invoice, client, subscription);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enviar mensagens em lote
+app.post('/api/messages/bulk', async (req, res) => {
+  try {
+    const { notifications, delayMs = 3000 } = req.body;
+    
+    if (!notifications || !Array.isArray(notifications) || notifications.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lista de notificações é obrigatória'
+      });
+    }
+
+    console.log(`📤 Iniciando envio em lote de ${notifications.length} mensagens...`);
+    
+    const results = [];
+    
+    for (let i = 0; i < notifications.length; i++) {
+      const notification = notifications[i];
+      const { type, invoice, client, subscription } = notification;
+      
+      console.log(`📤 Enviando ${i + 1}/${notifications.length}: ${type} para ${client.name}`);
+      
+      try {
+        let result;
+        
+        switch (type) {
+          case 'overdue':
+            result = await automationService.sendOverdueNotification(invoice, client, subscription);
+            break;
+          case 'reminder':
+            result = await automationService.sendReminderNotification(invoice, client, subscription);
+            break;
+          case 'new_invoice':
+            result = await automationService.sendNewInvoiceNotification(invoice, client, subscription);
+            break;
+          case 'payment_confirmation':
+            result = await automationService.sendPaymentConfirmation(invoice, client, subscription);
+            break;
+          case 'custom':
+            result = await automationService.sendWhatsAppMessage(client.phone, notification.message);
+            break;
+          default:
+            result = { success: false, error: 'Tipo de notificação inválido' };
+        }
+        
+        results.push({
+          client: client.name,
+          phone: client.phone,
+          type,
+          amount: invoice.amount,
+          hasSubscription: !!subscription,
+          ...result
+        });
+        
+      } catch (error) {
+        console.error(`❌ Erro ao enviar para ${client.name}:`, error);
+        results.push({
+          client: client.name,
+          phone: client.phone,
+          type,
+          amount: invoice.amount,
+          hasSubscription: !!subscription,
+          success: false,
+          error: error.message
+        });
+      }
+      
+      // Delay entre envios
+      if (i < notifications.length - 1) {
+        console.log(`⏳ Aguardando ${delayMs}ms antes do próximo envio...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+    
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+    
+    console.log(`✅ Envio em lote concluído: ${successful} sucessos, ${failed} falhas`);
+    
+    res.json({
+      success: true,
+      results: results,
+      summary: {
+        total: results.length,
+        successful,
+        failed,
+        successRate: results.length > 0 ? Math.round((successful / results.length) * 100) : 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Obter histórico de mensagens
+app.get('/api/messages/history/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { limit = 10 } = req.query;
+    
+    const history = await automationService.getMessageHistory(clientId, parseInt(limit));
+    
+    res.json({
+      success: true,
+      history: history
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Verificar se mensagem foi enviada hoje
+app.get('/api/messages/sent-today/:clientId/:type', async (req, res) => {
+  try {
+    const { clientId, type } = req.params;
+    
+    const wasSent = await automationService.wasMessageSentToday(clientId, type);
+    
+    res.json({
+      success: true,
+      sentToday: wasSent
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Obter estatísticas de mensagens
+app.get('/api/messages/stats', async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    
+    const stats = await automationService.getMessagingStats(parseInt(days));
+    
+    res.json({
+      success: true,
+      stats: stats
     });
   } catch (error) {
     res.status(500).json({
@@ -357,6 +677,7 @@ app.listen(port, async () => {
   console.log(`🔗 URL: http://localhost:${port}`);
   console.log(`🏥 Health: http://localhost:${port}/api/health`);
   console.log(`📊 Status: http://localhost:${port}/api/automation/status`);
+  console.log(`📱 Messages API: http://localhost:${port}/api/messages/*`);
   console.log('🚀 ======================================');
   
   // Log das variáveis de ambiente importantes

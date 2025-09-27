@@ -1,4 +1,4 @@
-// src/hooks/useWhatsAppNotifications.js - IMPLEMENTAÇÃO COMPLETA
+// src/hooks/useWhatsAppNotifications.js - REFATORADO PARA USAR BACKEND
 import { useState, useEffect, useCallback } from 'react';
 import { whatsappService } from '../services/whatsappService';
 
@@ -18,9 +18,10 @@ export const useWhatsAppNotifications = () => {
       return status;
     } catch (error) {
       console.error('Erro ao verificar conexão WhatsApp:', error);
-      setConnectionStatus({ connected: false, error: error.message });
+      const errorStatus = { connected: false, error: error.message };
+      setConnectionStatus(errorStatus);
       setIsConnected(false);
-      return { connected: false, error: error.message };
+      return errorStatus;
     } finally {
       setLoading(false);
     }
@@ -284,17 +285,7 @@ export const useWhatsAppNotifications = () => {
 
   // Validar se cliente tem WhatsApp
   const validateClientWhatsApp = useCallback((client) => {
-    if (!client.phone) {
-      return { valid: false, error: 'Cliente não possui telefone cadastrado' };
-    }
-
-    // Validação básica do formato do telefone
-    const phoneNumbers = client.phone.replace(/\D/g, '');
-    if (phoneNumbers.length < 10) {
-      return { valid: false, error: 'Telefone inválido' };
-    }
-
-    return { valid: true };
+    return whatsappService.validateClientWhatsApp(client);
   }, []);
 
   // Obter status da conexão formatado

@@ -667,7 +667,65 @@ process.on('unhandledRejection', async (reason, promise) => {
   await automationService.stopAutomation();
   process.exit(1);
 });
+// Auto-start da automação após inicialização
+async function autoStartAutomation() {
+  console.log('🔄 Verificando auto-start da automação...');
+  
+  // Aguardar 30 segundos para garantir que tudo está estabilizado
+  setTimeout(async () => {
+    try {
+      // Verificar se WhatsApp está conectado
+      const whatsappOk = await checkWhatsApp();
+      if (!whatsappOk) {
+        console.log('⚠️ WhatsApp não conectado - automação não iniciada automaticamente');
+        console.log('💡 Conecte o WhatsApp e inicie manualmente via API');
+        return;
+      }
 
+      // Verificar se já está rodando
+      if (automationState.isRunning) {
+        console.log('ℹ️ Automação já está rodando');
+        return;
+      }
+
+      // Iniciar automação automaticamente
+      console.log('🚀 Iniciando automação automaticamente...');
+      
+      const cronExpression = `*/${config.checkInterval} * * * *`;
+      automationState.cronJob = cron.schedule(cronExpression, runAutomationCycle, {
+        scheduled: false
+      });
+
+      automationState.cronJob.start();
+      automationState.isRunning = true;
+
+      console.log(`✅ Automação iniciada automaticamente - ciclo a cada ${config.checkInterval} min`);
+      
+      // Primeira execução em 2 minutos
+      setTimeout(runAutomationCycle, 120000);
+
+    } catch (error) {
+      console.error('❌ Erro no auto-start:', error);
+      console.log('💡 Inicie manualmente via API quando necessário');
+    }
+  }, 30000); // 30 segundos após o servidor iniciar
+}
+
+// Inicializar servidor
+app.listen(port, () => {
+  console.log('🚀 ================================');
+  console.log('🚀 SERVIDOR AUTOMAÇÃO WHATSAPP');
+  console.log('🚀 ================================');
+  console.log(`🌐 Porta: ${port}`);
+  console.log(`🔗 Health: http://localhost:${port}/health`);
+  console.log(`📱 WhatsApp API: ${config.whatsappApiUrl}`);
+  console.log(`⚙️ Instância: ${config.instanceName}`);
+  console.log(`⏰ Intervalo: ${config.checkInterval} min`);
+  console.log('🚀 ================================');
+  
+  // Iniciar auto-start
+  autoStartAutomation();
+});
 // Iniciar servidor
 app.listen(port, async () => {
   console.log('🚀 ======================================');
@@ -710,5 +768,6 @@ app.listen(port, async () => {
   
   console.log('🚀 ======================================');
 });
+
 
 module.exports = app;

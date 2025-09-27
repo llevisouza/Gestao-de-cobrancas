@@ -1,5 +1,5 @@
 // src/services/whatsappService.js - Refatorado para usar Evolution API diretamente
-import { formatCurrency, formatDate } from '../utils/formatters';
+const { formatCurrency, formatDate } = require('../utils/formatters');
 
 class WhatsAppService {
   constructor() {
@@ -705,4 +705,4 @@ const whatsappService = new WhatsAppService();
 whatsappService.loadCompanyInfo();
 whatsappService.loadCustomTemplates();
 
-export { whatsappService };
+module.exports = { whatsappService };

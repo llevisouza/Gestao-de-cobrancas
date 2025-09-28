@@ -1,9 +1,10 @@
 // src/hooks/useAutomation.js - VERSÃO CORRIGIDA COMPLETA
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = process.env.NODE_ENV === 'production' 
-  ? 'http://34.11.181.1:3001/api'
-  : 'http://localhost:3001/api';
+const API_BASE = process.env.REACT_APP_BACKEND_URL || 
+  (process.env.NODE_ENV === 'production' 
+    ? 'https://gestaodecobrancas.ddns.net/api'
+    : 'http://localhost:3001/api');
 
 export const useAutomation = () => {
   // ✅ Estados principais

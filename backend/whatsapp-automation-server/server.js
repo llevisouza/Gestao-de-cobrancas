@@ -1,4 +1,3 @@
-// whatsapp-automation-server/server.js - CORREÇÕES DE PERSISTÊNCIA
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -9,8 +8,9 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-// Carregar variáveis de ambiente
-dotenv.config({ path: '.env' });
+// Carregar variáveis de ambiente da raiz
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
 
 // ✅ CORREÇÃO 1: Melhor inicialização do Firebase
 let db;

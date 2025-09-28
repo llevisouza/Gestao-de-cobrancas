@@ -179,6 +179,24 @@ export const NOTIFICATION_CONFIG = {
     BOTTOM_LEFT: 'bottom-left'
   }
 };
+// ADICIONAR no final do seu constants.js existente:
+
+export const DEFAULT_WHATSAPP_AUTOMATION_CONFIG = {
+  enabled: false,
+  schedules: {
+    reminder: { enabled: true, daysBefore: 3, time: '09:00' },
+    overdue: { enabled: true, daysAfter: 1, time: '10:00' },
+    final: { enabled: true, daysAfter: 7, time: '15:00' }
+  },
+  workingHours: {
+    start: '08:00',
+    end: '18:00', 
+    workDays: [1, 2, 3, 4, 5]
+  },
+  maxMessagesPerDay: 3,
+  cooldownHours: 24
+};
+
 
 export default {
   ROUTES,

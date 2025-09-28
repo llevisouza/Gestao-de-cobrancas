@@ -3,7 +3,6 @@ import { ROUTES } from '../../utils/constants';
 
 const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isWhatsAppDropdownOpen, setIsWhatsAppDropdownOpen] = useState(false);
 
   const handleLogout = async () => {
     const result = await onLogout();
@@ -15,9 +14,12 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
   const getNavButtonClass = (view) => {
     const baseClass = "flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition duration-200";
     let isActive = currentView === view;
-    if (Array.isArray(view) && view.includes(currentView)) {
+    
+    // ✅ MUDANÇA: Considerar ambas as rotas WhatsApp como uma só seção
+    if (view === ROUTES.WHATSAPP && (currentView === ROUTES.WHATSAPP || currentView === ROUTES.WHATSAPP_AUTOMATION)) {
       isActive = true;
     }
+    
     return `${baseClass} ${isActive ? 'nav-active' : 'nav-inactive'}`;
   };
 
@@ -31,18 +33,9 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
     { route: ROUTES.DASHBOARD, label: 'Dashboard', icon: '📊' },
     { route: ROUTES.CLIENTS, label: 'Clientes', icon: '👥' },
     { route: ROUTES.REPORTS, label: 'Relatórios', icon: '📈' },
+    // ✅ MUDANÇA: WhatsApp agora é um item simples que vai para a página de notificações
+    { route: ROUTES.WHATSAPP, label: 'WhatsApp', icon: '📱' }
   ];
-
-  // Função para lidar com o clique no dropdown WhatsApp
-  const handleWhatsAppDropdown = () => {
-    setIsWhatsAppDropdownOpen(!isWhatsAppDropdownOpen);
-  };
-
-  // Função para fechar o dropdown quando clicar fora
-  const handleDropdownItemClick = (route) => {
-    onViewChange(route);
-    setIsWhatsAppDropdownOpen(false);
-  };
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
@@ -87,57 +80,6 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
                 <span>{item.label}</span>
               </button>
             ))}
-
-            {/* WhatsApp Dropdown com controle melhor */}
-            <div className="relative">
-              <button 
-                onClick={handleWhatsAppDropdown}
-                className={`${getNavButtonClass([ROUTES.WHATSAPP, ROUTES.WHATSAPP_AUTOMATION])} ${
-                  isWhatsAppDropdownOpen ? 'bg-orange-100 text-orange-700' : ''
-                }`}
-              >
-                <span>📱</span>
-                <span>WhatsApp</span>
-                <svg 
-                  className={`w-4 h-4 ml-1 transform transition-transform duration-200 ${
-                    isWhatsAppDropdownOpen ? 'rotate-180' : ''
-                  }`} 
-                  fill="currentColor" 
-                  viewBox="0 0 20 20"
-                >
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"></path>
-                </svg>
-              </button>
-              
-              {/* Dropdown Menu */}
-              {isWhatsAppDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg border border-gray-200 z-50 animate-fadeIn">
-                  <div className="py-2">
-                    <button
-                      onClick={() => handleDropdownItemClick(ROUTES.WHATSAPP)}
-                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-orange-600 transition-colors flex items-center gap-3"
-                    >
-                      <span className="text-lg">📱</span>
-                      <div>
-                        <div className="font-medium">Gerenciar Cobranças</div>
-                        <div className="text-xs text-gray-500">Enviar cobranças via WhatsApp</div>
-                      </div>
-                    </button>
-                    <hr className="my-1 border-gray-100" />
-                    <button
-                      onClick={() => handleDropdownItemClick(ROUTES.WHATSAPP_AUTOMATION)}
-                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-orange-600 transition-colors flex items-center gap-3"
-                    >
-                      <span className="text-lg">🤖</span>
-                      <div>
-                        <div className="font-medium">Automação</div>
-                        <div className="text-xs text-gray-500">Configurar cobranças automáticas</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </nav>
 
           {/* User Menu */}
@@ -205,30 +147,6 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
               </button>
             ))}
             
-            {/* WhatsApp mobile menu */}
-            <div className="border-t pt-2 mt-2">
-              <button
-                onClick={() => {
-                  onViewChange(ROUTES.WHATSAPP);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`${getNavButtonClass(ROUTES.WHATSAPP)} w-full justify-start`}
-              >
-                <span>📱</span>
-                <span>Gerenciar Cobranças</span>
-              </button>
-              <button
-                onClick={() => {
-                  onViewChange(ROUTES.WHATSAPP_AUTOMATION);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`${getNavButtonClass(ROUTES.WHATSAPP_AUTOMATION)} w-full justify-start`}
-              >
-                <span>🤖</span>
-                <span>Automação</span>
-              </button>
-            </div>
-            
             {/* Mobile user info */}
             <div className="border-t pt-4 mt-4">
               <div className="flex items-center px-2">
@@ -254,14 +172,6 @@ const Header = ({ user, onLogout, currentView, onViewChange, onCreateSampleData 
             </div>
           </div>
         </div>
-      )}
-
-      {/* Overlay para fechar dropdown quando clicar fora */}
-      {isWhatsAppDropdownOpen && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setIsWhatsAppDropdownOpen(false)}
-        />
       )}
 
       {/* CSS adicional para animações */}

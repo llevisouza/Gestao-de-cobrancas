@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useFirebaseAuth } from './hooks/useFirebaseAuth';
 import { useFirestore } from './hooks/useFirestore';
 import { ROUTES } from './utils/constants';
-import AutomationDashboard from './components/automation/AutomationDashboard';
 import Header from './components/common/Header';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import LoginPage from './components/auth/LoginPage';
@@ -11,7 +10,6 @@ import Dashboard from './components/dashboard/Dashboard';
 import ClientsPage from './components/clients/ClientsPage';
 import ReportsPage from './components/reports/ReportsPage';
 import UnifiedWhatsAppManager from './components/whatsapp/UnifiedWhatsAppManager';
-import WhatsAppAutomationConfig from './components/whatsapp/WhatsAppAutomationConfig';
 
 // Estilos
 import './styles/globals.css';
@@ -125,6 +123,7 @@ function App() {
         )}
 
         {currentView === ROUTES.CLIENTS && <ClientsPage />}
+        
         {currentView === ROUTES.REPORTS && (
           <ReportsPage
             clients={clients}
@@ -132,20 +131,13 @@ function App() {
           />
         )}
 
-        {/* ✅ WhatsApp Unificado com Controle de Automação */}
-        {currentView === ROUTES.WHATSAPP && (
+        {/* ✅ ROTA UNIFICADA - WhatsApp com todas as abas incluindo Automação */}
+        {(currentView === ROUTES.WHATSAPP || currentView === ROUTES.WHATSAPP_AUTOMATION) && (
           <UnifiedWhatsAppManager
             invoices={invoices}
             clients={clients}
             subscriptions={subscriptions}
-            onNavigate={setCurrentView}
-          >
-            <AutomationDashboard />
-          </UnifiedWhatsAppManager>
-        )}
-
-        {currentView === ROUTES.WHATSAPP_AUTOMATION && (
-          <WhatsAppAutomationConfig />
+          />
         )}
       </main>
     </div>

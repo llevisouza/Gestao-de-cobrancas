@@ -1,4 +1,4 @@
-// src/components/automation/AutomationDashboard.js - VERSÃO CORRIGIDA
+// src/components/automation/AutomationDashboard.js - VERSÃO COM CONFIGURAÇÕES ADICIONADAS
 import React, { useState, useEffect } from 'react';
 import { useAutomation } from '../../hooks/useAutomation';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -34,15 +34,81 @@ const AutomationDashboard = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [showLogs, setShowLogs] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showConfig, setShowConfig] = useState(false); // NOVO: controle de exibição de configurações
   const [notification, setNotification] = useState(null);
 
-  // ✅ Função para mostrar notificação
+  // NOVO: Estados para configuração
+  const [localConfig, setLocalConfig] = useState({
+    enabled: true,
+    schedules: {
+      reminder: { enabled: true, daysBefore: 3, time: '09:00' },
+      overdue: { enabled: true, daysAfter: 1, time: '10:00' },
+      final: { enabled: true, daysAfter: 7, time: '15:00' }
+    },
+    workingHours: {
+      start: '08:00',
+      end: '18:00',
+      workDays: [1, 2, 3, 4, 5] // Segunda a Sexta
+    },
+    maxMessagesPerDay: 3,
+    cooldownHours: 24,
+    respectBusinessHours: true,
+    skipWeekends: true
+  });
+
+  // NOVO: Carregar configuração salva
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('whatsapp_automation_config');
+    if (savedConfig) {
+      try {
+        setLocalConfig(JSON.parse(savedConfig));
+      } catch (error) {
+        console.error('Erro ao carregar configuração:', error);
+      }
+    }
+  }, []);
+
+  // Função para mostrar notificação
   const showNotification = (type, message) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000);
   };
 
-  // ✅ Handler para iniciar automação
+  // NOVO: Salvar configuração
+  const handleSaveConfig = async () => {
+    try {
+      localStorage.setItem('whatsapp_automation_config', JSON.stringify(localConfig));
+      
+      if (updateConfig) {
+        await updateConfig(localConfig);
+      }
+      
+      showNotification('success', 'Configuração salva com sucesso!');
+    } catch (error) {
+      showNotification('error', 'Erro ao salvar configuração: ' + error.message);
+    }
+  };
+
+  // NOVO: Atualizar configuração local
+  const updateLocalConfig = (path, value) => {
+    setLocalConfig(prev => {
+      const newConfig = { ...prev };
+      const keys = path.split('.');
+      let current = newConfig;
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!(keys[i] in current)) {
+          current[keys[i]] = {};
+        }
+        current = current[keys[i]];
+      }
+      
+      current[keys[keys.length - 1]] = value;
+      return newConfig;
+    });
+  };
+
+  // Handler para iniciar automação
   const handleStart = async () => {
     console.log('🚀 [AutomationDashboard] Usuário clicou em INICIAR');
     setActionLoading('start');
@@ -65,7 +131,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Handler para parar automação
+  // Handler para parar automação
   const handleStop = async () => {
     console.log('🛑 [AutomationDashboard] Usuário clicou em PARAR');
     setActionLoading('stop');
@@ -88,7 +154,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Handler para ciclo manual
+  // Handler para ciclo manual
   const handleManualCycle = async () => {
     console.log('🔄 [AutomationDashboard] Usuário clicou em CICLO MANUAL');
     setActionLoading('manual');
@@ -109,7 +175,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Handler para testar conexões
+  // Handler para testar conexões
   const handleTestConnections = async () => {
     console.log('🔍 [AutomationDashboard] Testando conexões...');
     setActionLoading('test');
@@ -129,7 +195,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Handler para reset
+  // Handler para reset
   const handleReset = async () => {
     if (!window.confirm('⚠️ Tem certeza que deseja resetar a automação? Isso irá parar todos os processos.')) {
       return;
@@ -153,7 +219,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Carregar logs quando solicitado
+  // Carregar logs quando solicitado
   const handleShowLogs = async () => {
     if (!showLogs) {
       setShowLogs(true);
@@ -163,7 +229,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Carregar stats quando solicitado
+  // Carregar stats quando solicitado
   const handleShowStats = async () => {
     if (!showStats) {
       setShowStats(true);
@@ -173,7 +239,7 @@ const AutomationDashboard = () => {
     }
   };
 
-  // ✅ Auto-refresh de stats a cada 30 segundos se estiver visível
+  // Auto-refresh de stats a cada 30 segundos se estiver visível
   useEffect(() => {
     if (showStats) {
       const interval = setInterval(() => {
@@ -184,7 +250,7 @@ const AutomationDashboard = () => {
     }
   }, [showStats, getAutomationStats]);
 
-  // ✅ Loading inicial
+  // Loading inicial
   if (loading && isRunning === null) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -357,6 +423,299 @@ const AutomationDashboard = () => {
         </button>
       </div>
 
+      {/* NOVO: Seção de Configurações */}
+      <div className="mb-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              ⚙️ Configurações de Automação
+            </h3>
+            <button
+              onClick={() => setShowConfig(!showConfig)}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+            >
+              {showConfig ? 'Ocultar' : 'Configurar'}
+            </button>
+          </div>
+        </div>
+
+        {showConfig && (
+          <div className="p-6 space-y-6">
+            {/* Horário Comercial */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">🕐 Horário Comercial</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Início
+                    </label>
+                    <select
+                      value={localConfig.workingHours.start}
+                      onChange={(e) => updateLocalConfig('workingHours.start', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => {
+                        const hour = i.toString().padStart(2, '0');
+                        return (
+                          <option key={hour} value={`${hour}:00`}>
+                            {hour}:00
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fim
+                    </label>
+                    <select
+                      value={localConfig.workingHours.end}
+                      onChange={(e) => updateLocalConfig('workingHours.end', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => {
+                        const hour = i.toString().padStart(2, '0');
+                        return (
+                          <option key={hour} value={`${hour}:00`}>
+                            {hour}:00
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">📅 Dias de Trabalho</h4>
+                <div className="space-y-2">
+                  {[
+                    { value: 1, label: 'Segunda-feira' },
+                    { value: 2, label: 'Terça-feira' },
+                    { value: 3, label: 'Quarta-feira' },
+                    { value: 4, label: 'Quinta-feira' },
+                    { value: 5, label: 'Sexta-feira' },
+                    { value: 6, label: 'Sábado' },
+                    { value: 0, label: 'Domingo' }
+                  ].map((day) => (
+                    <label key={day.value} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={localConfig.workingHours.workDays.includes(day.value)}
+                        onChange={(e) => {
+                          const newDays = e.target.checked
+                            ? [...localConfig.workingHours.workDays, day.value]
+                            : localConfig.workingHours.workDays.filter(d => d !== day.value);
+                          updateLocalConfig('workingHours.workDays', newDays);
+                        }}
+                        className="mr-2"
+                      />
+                      <span className="text-sm">{day.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Tipos de Cobrança */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">📝 Tipos de Cobrança</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Lembrete */}
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-medium text-blue-600">🔔 Lembrete</h5>
+                    <input
+                      type="checkbox"
+                      checked={localConfig.schedules.reminder.enabled}
+                      onChange={(e) => updateLocalConfig('schedules.reminder.enabled', e.target.checked)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Dias antes do vencimento
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={localConfig.schedules.reminder.daysBefore}
+                        onChange={(e) => updateLocalConfig('schedules.reminder.daysBefore', parseInt(e.target.value))}
+                        className="w-full p-2 border border-gray-300 rounded text-sm"
+                        disabled={!localConfig.schedules.reminder.enabled}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Horário
+                      </label>
+                      <input
+                        type="time"
+                        value={localConfig.schedules.reminder.time}
+                        onChange={(e) => updateLocalConfig('schedules.reminder.time', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded text-sm"
+                        disabled={!localConfig.schedules.reminder.enabled}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vencida */}
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-medium text-red-600">🚨 Vencida</h5>
+                    <input
+                      type="checkbox"
+                      checked={localConfig.schedules.overdue.enabled}
+                      onChange={(e) => updateLocalConfig('schedules.overdue.enabled', e.target.checked)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Dias após vencimento
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={localConfig.schedules.overdue.daysAfter}
+                        onChange={(e) => updateLocalConfig('schedules.overdue.daysAfter', parseInt(e.target.value))}
+                        className="w-full p-2 border border-gray-300 rounded text-sm"
+                        disabled={!localConfig.schedules.overdue.enabled}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Horário
+                      </label>
+                      <input
+                        type="time"
+                        value={localConfig.schedules.overdue.time}
+                        onChange={(e) => updateLocalConfig('schedules.overdue.time', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded text-sm"
+                        disabled={!localConfig.schedules.overdue.enabled}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cobrança Final */}
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-medium text-orange-600">⚠️ Final</h5>
+                    <input
+                      type="checkbox"
+                      checked={localConfig.schedules.final.enabled}
+                      onChange={(e) => updateLocalConfig('schedules.final.enabled', e.target.checked)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Dias após vencimento
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={localConfig.schedules.final.daysAfter}
+                        onChange={(e) => updateLocalConfig('schedules.final.daysAfter', parseInt(e.target.value))}
+                        className="w-full p-2 border border-gray-300 rounded text-sm"
+                        disabled={!localConfig.schedules.final.enabled}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Horário
+                      </label>
+                      <input
+                        type="time"
+                        value={localConfig.schedules.final.time}
+                        onChange={(e) => updateLocalConfig('schedules.final.time', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded text-sm"
+                        disabled={!localConfig.schedules.final.enabled}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Limites e Controles */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">🛡️ Controles de Spam</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Máximo de mensagens por dia (por cliente)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={localConfig.maxMessagesPerDay}
+                      onChange={(e) => updateLocalConfig('maxMessagesPerDay', parseInt(e.target.value))}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cooldown entre mensagens (horas)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="72"
+                      value={localConfig.cooldownHours}
+                      onChange={(e) => updateLocalConfig('cooldownHours', parseInt(e.target.value))}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">📋 Opções Gerais</h4>
+                <div className="space-y-3">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={localConfig.respectBusinessHours}
+                      onChange={(e) => updateLocalConfig('respectBusinessHours', e.target.checked)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Respeitar horário comercial</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={localConfig.skipWeekends}
+                      onChange={(e) => updateLocalConfig('skipWeekends', e.target.checked)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Pular fins de semana</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Botão Salvar */}
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <button
+                onClick={handleSaveConfig}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                💾 Salvar Configurações
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Status das Conexões */}
       {connectionStatus && (
         <div className="mb-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -466,14 +825,14 @@ const AutomationDashboard = () => {
               
               <div className="p-3 bg-orange-50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-600">
-                  {config.maxMessagesPerDay || 1}
+                  {config.maxMessagesPerDay || localConfig.maxMessagesPerDay}
                 </div>
                 <div className="text-sm text-orange-800">Max Mensagens/Dia</div>
               </div>
               
               <div className="p-3 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">
-                  {config.businessHours?.start || 8}h-{config.businessHours?.end || 18}h
+                  {config.businessHours?.start || localConfig.workingHours.start}-{config.businessHours?.end || localConfig.workingHours.end}
                 </div>
                 <div className="text-sm text-purple-800">Horário Comercial</div>
               </div>

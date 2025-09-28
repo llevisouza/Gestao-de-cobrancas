@@ -1,4 +1,4 @@
-// src/services/firestore.js - VERSÃO CORRIGIDA COM PERSISTÊNCIA
+// src/services/firestore.js - VERSÃO CORRIGIDA COM PERSISTÊNCIA E PROTEÇÃO
 import { 
   collection, 
   addDoc, 
@@ -242,7 +242,7 @@ export const subscriptionService = {
   }
 };
 
-// ===== SERVIÇO DE FATURAS CORRIGIDO =====
+// ===== SERVIÇO DE FATURAS CORRIGIDO COM PROTEÇÃO =====
 export const invoiceService = {
   // Criar fatura
   async create(invoiceData) {
@@ -265,7 +265,7 @@ export const invoiceService = {
     }
   },
 
-  // Atualizar fatura
+  // ✅ CORREÇÃO: Atualizar fatura com proteção contra sobrescrita
   async update(invoiceId, invoiceData) {
     try {
       console.log('🔄 Atualizando fatura:', invoiceId, invoiceData);
@@ -275,14 +275,19 @@ export const invoiceService = {
         updatedAt: serverTimestamp()
       };
 
-      // Se marcando como pago, adicionar data de pagamento
-      if (invoiceData.status === 'paid' && !invoiceData.paidDate) {
-        updateData.paidDate = getCurrentDate();
+      // ✅ PROTEÇÃO: Se marcando como pago manualmente, adicionar flags de proteção
+      if (invoiceData.status === 'paid') {
+        updateData.paidDate = invoiceData.paidDate || getCurrentDate();
+        updateData.paidAt = invoiceData.paidAt || new Date().toISOString();
+        updateData.manuallyPaid = true; // ✅ Flag que protege contra tasks automáticas
+        updateData.lastManualUpdate = new Date().toISOString();
+        
+        console.log('✅ Fatura sendo FORÇADAMENTE marcada como paga com proteção');
       }
       
       await updateDoc(doc(db, 'invoices', invoiceId), updateData);
       
-      console.log('✅ Fatura atualizada:', invoiceId);
+      console.log('✅ Fatura atualizada com proteção:', invoiceId);
       return { success: true };
     } catch (error) {
       console.error('❌ Erro ao atualizar fatura:', error);
@@ -305,7 +310,7 @@ export const invoiceService = {
     }
   },
 
-  // Gerar faturas baseadas em assinaturas ativas
+  // ✅ CORREÇÃO: Gerar faturas sem duplicação
   async generateFromSubscriptions() {
     try {
       console.log('🔄 Gerando faturas das assinaturas ativas...');
@@ -324,16 +329,17 @@ export const invoiceService = {
       for (const subDoc of subscriptionsSnapshot.docs) {
         const subscription = subDoc.data();
         
-        // Verificar se já existe fatura para hoje
-        const existingInvoicesQuery = query(
+        // ✅ CORREÇÃO: Verificação mais rigorosa de duplicatas
+        const duplicateCheckQuery = query(
           collection(db, 'invoices'),
           where('subscriptionId', '==', subDoc.id),
+          where('clientId', '==', subscription.clientId),
           where('generationDate', '==', today)
         );
-        const existingSnapshot = await getDocs(existingInvoicesQuery);
+        const duplicateSnapshot = await getDocs(duplicateCheckQuery);
         
-        if (!existingSnapshot.empty) {
-          console.log('⚠️ Fatura já existe para hoje:', subDoc.id);
+        if (!duplicateSnapshot.empty) {
+          console.log('⚠️ Fatura já existe para hoje:', subscription.clientName, subscription.name);
           continue;
         }
         
@@ -365,30 +371,35 @@ export const invoiceService = {
           dueDate = date.toISOString().split('T')[0];
         }
         
-        // Criar fatura
+        // ✅ CORREÇÃO: Criar fatura com ID único baseado em timestamp
+        const uniqueId = `${subDoc.id}-${today}-${Date.now()}`;
         const invoiceRef = doc(collection(db, 'invoices'));
+        
         batch.set(invoiceRef, {
           clientId: subscription.clientId,
           clientName: subscription.clientName,
           subscriptionId: subDoc.id,
+          subscriptionName: subscription.name,
           amount: subscription.amount,
           description: `${subscription.name} - ${subscription.recurrenceType}`,
           dueDate,
           generationDate: today,
           status: 'pending',
+          uniqueKey: uniqueId, // ✅ Chave única para evitar duplicatas
+          generatedBy: 'auto',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
         
         generatedCount++;
-        console.log('✅ Fatura preparada para:', subscription.clientName);
+        console.log('✅ Fatura preparada para:', subscription.clientName, '-', subscription.name);
       }
       
       if (generatedCount > 0) {
         await batch.commit();
         console.log(`🎉 ${generatedCount} faturas geradas com sucesso!`);
       } else {
-        console.log('ℹ️ Nenhuma fatura para gerar no momento');
+        console.log('ℹ️ Nenhuma fatura nova para gerar no momento');
       }
       
       return generatedCount;
@@ -521,22 +532,30 @@ export const createExampleData = async () => {
         recurrenceDays: 10,
         startDate: getCurrentDate(),
         status: 'active'
-      },
-      // Ana - Segunda assinatura (Mensal)
-      {
-        clientRef: 0,
-        name: 'Plano Premium Mensal',
-        amount: 200.00,
-        recurrenceType: 'monthly',
-        dayOfMonth: 1,
-        startDate: getCurrentDate(),
-        status: 'active'
       }
     ];
     
+    const subscriptionRefs = [];
     exampleSubscriptions.forEach((sub, index) => {
       const subscriptionRef = doc(collection(db, 'subscriptions'));
       const clientData = clientRefs[sub.clientRef];
+      
+      subscriptionRefs.push({
+        ref: subscriptionRef,
+        clientRef: sub.clientRef,
+        data: {
+          clientId: clientData.ref.id,
+          clientName: clientData.data.name,
+          name: sub.name,
+          amount: sub.amount,
+          recurrenceType: sub.recurrenceType,
+          dayOfWeek: sub.dayOfWeek,
+          dayOfMonth: sub.dayOfMonth,
+          recurrenceDays: sub.recurrenceDays,
+          startDate: sub.startDate,
+          status: sub.status
+        }
+      });
       
       batch.set(subscriptionRef, {
         clientId: clientData.ref.id,
@@ -554,7 +573,7 @@ export const createExampleData = async () => {
       });
     });
     
-    // Faturas de exemplo
+    // ✅ CORREÇÃO: Faturas de exemplo sem duplicação
     const today = getCurrentDate();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -564,33 +583,38 @@ export const createExampleData = async () => {
     const exampleInvoices = [
       {
         clientRef: 0,
+        subscriptionRef: 0,
         amount: 25.00,
-        description: 'Delivery Diário - 01/01/2024',
+        description: 'Delivery Diário - Exemplo',
         generationDate: yesterday.toISOString().split('T')[0],
         dueDate: yesterday.toISOString().split('T')[0],
         status: 'paid',
-        paidDate: yesterday.toISOString().split('T')[0]
+        paidDate: yesterday.toISOString().split('T')[0],
+        manuallyPaid: true
       },
       {
         clientRef: 1,
+        subscriptionRef: 1,
         amount: 150.00,
-        description: 'Plano Premium Semanal',
+        description: 'Plano Premium Semanal - Exemplo',
         generationDate: today,
         dueDate: today,
         status: 'pending'
       },
       {
         clientRef: 2,
+        subscriptionRef: 2,
         amount: 75.00,
-        description: 'Mensalidade Delivery',
+        description: 'Mensalidade Delivery - Exemplo',
         generationDate: lastWeek.toISOString().split('T')[0],
         dueDate: lastWeek.toISOString().split('T')[0],
         status: 'overdue'
       },
       {
         clientRef: 3,
+        subscriptionRef: 3,
         amount: 120.00,
-        description: 'Plano Personalizado',
+        description: 'Plano Personalizado - Exemplo',
         generationDate: today,
         dueDate: today,
         status: 'pending'
@@ -600,16 +624,22 @@ export const createExampleData = async () => {
     exampleInvoices.forEach((invoice, index) => {
       const invoiceRef = doc(collection(db, 'invoices'));
       const clientData = clientRefs[invoice.clientRef];
+      const subscriptionData = subscriptionRefs[invoice.subscriptionRef];
       
       batch.set(invoiceRef, {
         clientId: clientData.ref.id,
         clientName: clientData.data.name,
+        subscriptionId: subscriptionData.ref.id,
+        subscriptionName: subscriptionData.data.name,
         amount: invoice.amount,
         description: invoice.description,
         generationDate: invoice.generationDate,
         dueDate: invoice.dueDate,
         status: invoice.status,
         paidDate: invoice.paidDate || null,
+        manuallyPaid: invoice.manuallyPaid || false,
+        uniqueKey: `example-${index}-${Date.now()}`, // ✅ Chave única
+        generatedBy: 'example',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });

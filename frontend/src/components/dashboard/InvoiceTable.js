@@ -14,6 +14,8 @@ const InvoiceTable = ({ invoices, clients }) => {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('dueDate');
   const [updatingInvoices, setUpdatingInvoices] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // Limite de itens por página
 
   const clientsMap = useMemo(() => {
     const map = new Map();
@@ -41,9 +43,15 @@ const InvoiceTable = ({ invoices, clients }) => {
           return a.status.localeCompare(b.status);
         }
         return 0;
-      })
-      .slice(0, 20);
+      });
   }, [invoices, filter, sortBy]);
+
+  const paginatedInvoices = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return processedInvoices.slice(startIndex, startIndex + itemsPerPage);
+  }, [processedInvoices, currentPage]);
+
+  const totalPages = Math.ceil(processedInvoices.length / itemsPerPage);
 
   const stats = useMemo(() => {
     const filtered = processedInvoices;
@@ -150,6 +158,68 @@ const InvoiceTable = ({ invoices, clients }) => {
     };
   };
 
+  const getActions = (invoice) => {
+    const correctedStatus = getCorrectedInvoiceStatus(invoice);
+    let actions = [];
+
+    if (correctedStatus === 'pending') {
+      actions.push({
+        label: 'Marcar como Pago',
+        onClick: () => handleMarkAsPaid(invoice),
+        color: 'green'
+      });
+    }
+
+    if (correctedStatus === 'overdue') {
+      actions.push({
+        label: 'Regularizar',
+        onClick: () => handleRegularize(invoice.id),
+        color: 'red'
+      });
+    }
+
+    return actions;
+  };
+
+  const handleRegularize = async (invoiceId) => {
+    if (updatingInvoices.has(invoiceId)) return;
+
+    setUpdatingInvoices(prev => new Set([...prev, invoiceId]));
+
+    try {
+      const updateData = {
+        status: 'paid',
+        paidDate: getCurrentDate(),
+        paidAt: new Date().toISOString()
+      };
+
+      await updateInvoice(invoiceId, updateData);
+
+      // Feedback visual temporário
+      const rowElement = document.getElementById(`invoice-row-${invoiceId}`);
+      if (rowElement) {
+        rowElement.style.backgroundColor = '#f0fdf4';
+        rowElement.style.borderColor = '#22c55e';
+        setTimeout(() => {
+          rowElement.style.backgroundColor = '';
+          rowElement.style.borderColor = '';
+        }, 2000);
+      }
+
+      alert('Fatura regularizada e marcada como paga!');
+      console.log(`Fatura ${invoiceId} regularizada e marcada como paga`);
+    } catch (error) {
+      console.error('Erro ao regularizar fatura:', error);
+      alert(`Erro ao regularizar fatura: ${error.message}`);
+    } finally {
+      setUpdatingInvoices(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(invoiceId);
+        return newSet;
+      });
+    }
+  };
+
   if (!invoices || invoices.length === 0) {
     return (
       <div className="card text-center py-12">
@@ -175,7 +245,7 @@ const InvoiceTable = ({ invoices, clients }) => {
               Faturas Recentes
             </h3>
             <p className="text-sm text-gray-500 mt-1">
-              Mostrando {processedInvoices.length} de {invoices.length} faturas
+              Mostrando {paginatedInvoices.length} de {invoices.length} faturas
             </p>
           </div>
           
@@ -183,7 +253,10 @@ const InvoiceTable = ({ invoices, clients }) => {
           <div className="flex space-x-2">
             <select
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setCurrentPage(1); // Reseta para a primeira página ao mudar o filtro
+              }}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="all">Todas</option>
@@ -193,7 +266,10 @@ const InvoiceTable = ({ invoices, clients }) => {
             </select>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => {
+                setSortBy(e.target.value);
+                setCurrentPage(1); // Reseta para a primeira página ao mudar a ordenação
+              }}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="dueDate">Por Data</option>
@@ -236,11 +312,12 @@ const InvoiceTable = ({ invoices, clients }) => {
             </tr>
           </thead>
           <tbody>
-            {processedInvoices.map(invoice => {
+            {paginatedInvoices.map(invoice => {
               // Usa o utilitário padronizado para informações de dias
               const daysInfo = getStandardizedDaysInfo(invoice);
               const clientData = getClientData(invoice.clientId);
               const isUpdating = updatingInvoices.has(invoice.id);
+              const actions = getActions(invoice);
               
               return (
                 <tr 
@@ -301,40 +378,33 @@ const InvoiceTable = ({ invoices, clients }) => {
                       <div className="text-gray-900 font-medium">
                         {formatDate(invoice.dueDate)}
                       </div>
-                      {/* Usa o utilitário padronizado para mostrar informações de dias */}
                       <div className={`text-xs mt-1 px-2 py-1 rounded-full ${daysInfo.bgClass} ${daysInfo.class}`}>
                         {daysInfo.text}
                       </div>
                     </div>
                   </td>
                   <td>
-                    {invoice.status === INVOICE_STATUS.PENDING ? (
-                      <select
-                        value={invoice.status}
-                        onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
-                        disabled={isUpdating}
-                        className="form-select text-sm py-1 px-2 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50"
-                      >
-                        <option value={INVOICE_STATUS.PENDING}>Pendente</option>
-                        <option value={INVOICE_STATUS.PAID}>Pago</option>
-                      </select>
-                    ) : (
+                    {invoice.status === INVOICE_STATUS.PENDING || invoice.status === INVOICE_STATUS.OVERDUE ? (
                       getStatusBadge(invoice.status)
+                    ) : (
+                      <span className="text-sm text-gray-600">
+                        {INVOICE_STATUS_LABELS[invoice.status] || invoice.status}
+                      </span>
                     )}
                   </td>
                   <td>
                     <div className="flex items-center space-x-2">
-                      {/* Botão para marcar como pago */}
-                      {(invoice.status === INVOICE_STATUS.PENDING || invoice.status === INVOICE_STATUS.OVERDUE) && (
+                      {actions.map((action, index) => (
                         <button
-                          onClick={() => handleMarkAsPaid(invoice)}
+                          key={index}
+                          onClick={action.onClick}
                           disabled={isUpdating}
                           className={`text-xs font-medium px-3 py-1.5 rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            daysInfo.isOverdue 
+                            action.color === 'red'
                               ? 'bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg'
                               : 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg'
                           }`}
-                          title={daysInfo.isOverdue ? "Marcar fatura vencida como paga" : "Marcar como pago"}
+                          title={action.label}
                         >
                           {isUpdating ? (
                             <div className="flex items-center">
@@ -342,14 +412,10 @@ const InvoiceTable = ({ invoices, clients }) => {
                               Salvando...
                             </div>
                           ) : (
-                            <>
-                              {daysInfo.isOverdue ? 'Regularizar' : 'Marcar Pago'}
-                            </>
+                            action.label
                           )}
                         </button>
-                      )}
-                      
-                      {/* Botão para cobranças vencidas */}
+                      ))}
                       {invoice.status === INVOICE_STATUS.OVERDUE && (
                         <button
                           onClick={() => alert('Em breve: Função de reenvio de cobrança!')}
@@ -359,22 +425,11 @@ const InvoiceTable = ({ invoices, clients }) => {
                           Cobrar
                         </button>
                       )}
-
-                      {/* Info de pagamento para faturas pagas */}
                       {invoice.status === INVOICE_STATUS.PAID && invoice.paidDate && (
                         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
                           Pago: {formatDate(invoice.paidDate)}
                         </span>
                       )}
-
-                      {/* Botão de PDF */}
-                      <button
-                        onClick={() => alert('Em breve: Geração de PDF da fatura!')}
-                        className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 transition-colors"
-                        title="Gerar PDF"
-                      >
-                        PDF
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -384,16 +439,29 @@ const InvoiceTable = ({ invoices, clients }) => {
         </table>
       </div>
       
-      {/* Rodapé se há mais faturas */}
-      {invoices.length > 20 && (
-        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center">
-          <p className="text-sm text-gray-600">
-            Mostrando as 20 faturas mais recentes de {invoices.length} total.
-          </p>
+      {/* Controles de Paginação */}
+      {totalPages > 1 && (
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Anterior
+          </button>
+          <span className="text-sm text-gray-600">
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Próximo
+          </button>
         </div>
       )}
       
-      {/* Resumo financeiro */}
       <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-blue-50 border-t border-gray-200">
         <div className="flex flex-wrap items-center justify-between space-y-2 lg:space-y-0">
           <div className="text-sm text-gray-700">

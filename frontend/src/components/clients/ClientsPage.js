@@ -1,4 +1,3 @@
-// src/components/clients/ClientsPage.js - VERSÃO TOTALMENTE CORRIGIDA
 import React, { useState, useMemo } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import ClientModal from './ClientModal';
@@ -20,7 +19,6 @@ const ClientsPage = () => {
     deleteSubscription
   } = useFirestore();
 
-  // Estados do componente
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('name');
@@ -29,7 +27,6 @@ const ClientsPage = () => {
   const [selectedClients, setSelectedClients] = useState([]);
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   
-  // Estados dos modais
   const [clientModal, setClientModal] = useState({ isOpen: false, client: null, loading: false });
   const [subscriptionModal, setSubscriptionModal] = useState({ 
     isOpen: false, 
@@ -38,7 +35,6 @@ const ClientsPage = () => {
     loading: false 
   });
 
-  // Estados de filtros avançados
   const [advancedFilters, setAdvancedFilters] = useState({
     hasSubscriptions: 'all',
     hasOverdueInvoices: 'all',
@@ -47,29 +43,24 @@ const ClientsPage = () => {
     maxRevenue: ''
   });
 
-  // Filtrar e ordenar clientes
   const filteredClients = useMemo(() => {
     let filtered = clients.filter(client => {
-      // Filtro por busca
       const searchMatch = !searchTerm || 
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (client.phone && client.phone.includes(searchTerm)) ||
         (client.cpf && client.cpf.includes(searchTerm));
 
-      // Filtro por status
       const statusMatch = filterStatus === 'all' || 
         (filterStatus === 'active' && client.status !== 'inactive') ||
         (filterStatus === 'inactive' && client.status === 'inactive');
 
-      // Filtros avançados
       const clientSubscriptions = subscriptions.filter(sub => sub.clientId === client.id);
       
       const hasSubscriptionsMatch = advancedFilters.hasSubscriptions === 'all' ||
         (advancedFilters.hasSubscriptions === 'yes' && clientSubscriptions.length > 0) ||
         (advancedFilters.hasSubscriptions === 'no' && clientSubscriptions.length === 0);
 
-      // Calcular receita total do cliente
       const clientRevenue = clientSubscriptions.reduce((sum, sub) => sum + parseFloat(sub.amount || 0), 0);
       
       const revenueMatch = 
@@ -79,7 +70,6 @@ const ClientsPage = () => {
       return searchMatch && statusMatch && hasSubscriptionsMatch && revenueMatch;
     });
 
-    // Ordenação
     filtered.sort((a, b) => {
       let aValue, bValue;
       
@@ -116,7 +106,6 @@ const ClientsPage = () => {
     return filtered;
   }, [clients, subscriptions, searchTerm, filterStatus, sortBy, sortOrder, advancedFilters]);
 
-  // Estatísticas dos clientes
   const clientStats = useMemo(() => {
     const total = clients.length;
     const active = clients.filter(c => c.status !== 'inactive').length;
@@ -133,7 +122,6 @@ const ClientsPage = () => {
     return { total, active, withSubscriptions, totalRevenue, averageRevenue };
   }, [clients, subscriptions]);
 
-  // Handlers do modal de cliente
   const handleCreateClient = () => {
     setClientModal({ isOpen: true, client: null, loading: false });
   };
@@ -147,16 +135,11 @@ const ClientsPage = () => {
       setClientModal(prev => ({ ...prev, loading: true }));
 
       if (clientModal.client) {
-        // Editar cliente existente
         await updateClient(clientModal.client.id, clientData);
-        console.log('✅ Cliente atualizado com sucesso');
       } else {
-        // Criar novo cliente
         await createClient(clientData);
-        console.log('✅ Cliente criado com sucesso');
       }
 
-      // Fechar modal
       setClientModal({ isOpen: false, client: null, loading: false });
       
     } catch (error) {
@@ -187,14 +170,12 @@ const ClientsPage = () => {
 
     try {
       await deleteClient(clientId);
-      console.log('✅ Cliente deletado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao deletar cliente:', error);
       alert(`Erro ao deletar cliente: ${error.message}`);
     }
   };
 
-  // Handlers do modal de assinatura
   const handleCreateSubscription = (client) => {
     setSubscriptionModal({ 
       isOpen: true, 
@@ -219,16 +200,11 @@ const ClientsPage = () => {
       setSubscriptionModal(prev => ({ ...prev, loading: true }));
 
       if (subscriptionModal.subscription) {
-        // Editar assinatura existente
         await updateSubscription(subscriptionModal.subscription.id, subscriptionData);
-        console.log('✅ Assinatura atualizada com sucesso');
       } else {
-        // Criar nova assinatura
         await createSubscription(subscriptionData);
-        console.log('✅ Assinatura criada com sucesso');
       }
 
-      // Fechar modal
       setSubscriptionModal({ isOpen: false, client: null, subscription: null, loading: false });
       
     } catch (error) {
@@ -251,14 +227,12 @@ const ClientsPage = () => {
 
     try {
       await deleteSubscription(subscriptionId);
-      console.log('✅ Assinatura deletada com sucesso');
     } catch (error) {
       console.error('❌ Erro ao deletar assinatura:', error);
       alert(`Erro ao deletar assinatura: ${error.message}`);
     }
   };
 
-  // Funções utilitárias
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -335,12 +309,10 @@ const ClientsPage = () => {
     });
   };
 
-  // Obter assinaturas do cliente
   const getClientSubscriptions = (clientId) => {
     return subscriptions.filter(sub => sub.clientId === clientId);
   };
 
-  // Loading principal
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
@@ -352,7 +324,6 @@ const ClientsPage = () => {
     );
   }
 
-  // Erro principal
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
@@ -375,7 +346,6 @@ const ClientsPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
       <div className="container mx-auto p-4 sm:p-6 lg:p-8">
         
-        {/* Header Premium */}
         <div className="mb-8">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
             <div className="flex-1">
@@ -389,7 +359,6 @@ const ClientsPage = () => {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Seletor de Visualização */}
               <div className="flex bg-white rounded-lg p-1 shadow-sm border">
                 {[
                   { key: 'table', icon: '📋', label: 'Tabela' },
@@ -410,7 +379,6 @@ const ClientsPage = () => {
                 ))}
               </div>
               
-              {/* Botões de Ação */}
               <button
                 onClick={exportClientsToCSV}
                 className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center px-4 py-2 rounded-lg shadow-sm transition-all duration-200"
@@ -444,7 +412,6 @@ const ClientsPage = () => {
           </div>
         </div>
 
-        {/* Estatísticas dos Clientes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between mb-4">
@@ -516,7 +483,6 @@ const ClientsPage = () => {
           </div>
         </div>
 
-        {/* Filtros e Busca Premium */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -534,7 +500,6 @@ const ClientsPage = () => {
             </button>
           </div>
 
-          {/* Busca Principal */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             <div className="lg:col-span-2">
               <div className="relative">
@@ -566,7 +531,6 @@ const ClientsPage = () => {
             </div>
           </div>
 
-          {/* Filtros Avançados */}
           {showAdvancedSearch && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
               <div>
@@ -626,7 +590,6 @@ const ClientsPage = () => {
             </div>
           )}
 
-          {/* Resultados da Busca */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
             <p className="text-sm text-gray-600">
               {filteredClients.length} de {clients.length} clientes encontrados
@@ -644,7 +607,6 @@ const ClientsPage = () => {
           </div>
         </div>
 
-        {/* Lista de Clientes */}
         {viewMode === 'table' && (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -873,7 +835,6 @@ const ClientsPage = () => {
           </div>
         )}
 
-        {/* Visualização em Cards */}
         {viewMode === 'cards' && (
           <div className="space-y-6">
             {filteredClients.length === 0 ? (
@@ -893,7 +854,6 @@ const ClientsPage = () => {
                   
                   return (
                     <div key={client.id} className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                      {/* Header do Card */}
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
@@ -915,7 +875,6 @@ const ClientsPage = () => {
                         )}
                       </div>
                       
-                      {/* Informações do Cliente */}
                       <div className="space-y-3 mb-6">
                         {client.cpf && (
                           <div className="flex items-center gap-2 text-sm">
@@ -939,7 +898,6 @@ const ClientsPage = () => {
                         </div>
                       </div>
                       
-                      {/* Assinaturas */}
                       <div className="mb-6">
                         <div className="flex items-center justify-between mb-3">
                           <h5 className="font-medium text-gray-900 flex items-center gap-2">

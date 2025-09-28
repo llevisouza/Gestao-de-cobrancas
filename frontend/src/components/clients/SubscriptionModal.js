@@ -1,4 +1,3 @@
-// src/components/clients/SubscriptionModal.js - VERSÃO TOTALMENTE CORRIGIDA
 import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import { SUBSCRIPTION_STATUS } from '../../utils/constants';
@@ -7,16 +6,15 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
-    recurrenceType: 'monthly', // daily, weekly, monthly, custom
-    recurrenceDays: '30', // Para custom
-    dayOfMonth: '', // Para monthly
-    dayOfWeek: 'monday', // Para weekly
+    recurrenceType: 'monthly',
+    recurrenceDays: '30',
+    dayOfMonth: '',
+    dayOfWeek: 'monday',
     startDate: '',
     status: 'active'
   });
   const [errors, setErrors] = useState({});
 
-  // Opções de recorrência
   const recurrenceOptions = [
     { value: 'daily', label: 'Diário', description: 'Todo dia' },
     { value: 'weekly', label: 'Semanal', description: 'Toda semana' },
@@ -24,7 +22,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     { value: 'custom', label: 'Personalizado', description: 'Escolher quantidade de dias' }
   ];
 
-  // Dias da semana
   const weekDays = [
     { value: 'monday', label: 'Segunda-feira' },
     { value: 'tuesday', label: 'Terça-feira' },
@@ -35,11 +32,9 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     { value: 'sunday', label: 'Domingo' }
   ];
 
-  // Reset do formulário quando modal abre/fecha
   useEffect(() => {
     if (isOpen) {
       if (subscription) {
-        // Editando assinatura existente
         setFormData({
           name: subscription.name || '',
           amount: subscription.amount?.toString() || '',
@@ -51,7 +46,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           status: subscription.status || 'active'
         });
       } else {
-        // Nova assinatura
         const today = new Date();
         const todayString = today.toISOString().split('T')[0];
         setFormData({ 
@@ -73,24 +67,19 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     const { name, value } = e.target;
     let formattedValue = value;
 
-    // Formatação para valor monetário
     if (name === 'amount') {
-      // Remove caracteres não numéricos exceto vírgula e ponto
       formattedValue = value.replace(/[^\d.,]/g, '');
-      // Substitui vírgula por ponto para processamento
       if (formattedValue.includes(',')) {
         formattedValue = formattedValue.replace(',', '.');
       }
     }
 
-    // Validação para dia do mês
     if (name === 'dayOfMonth') {
       const dayNum = parseInt(value);
       if (dayNum < 1) formattedValue = '1';
       if (dayNum > 31) formattedValue = '31';
     }
 
-    // Validação para dias customizados
     if (name === 'recurrenceDays') {
       const daysNum = parseInt(value);
       if (daysNum < 1) formattedValue = '1';
@@ -98,8 +87,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     }
 
     setFormData(prev => ({ ...prev, [name]: formattedValue }));
-    
-    // Limpar erro específico
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -108,14 +95,12 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
   const validate = () => {
     const newErrors = {};
     
-    // Nome obrigatório
     if (!formData.name.trim()) {
       newErrors.name = 'Nome da assinatura é obrigatório';
     } else if (formData.name.trim().length < 3) {
       newErrors.name = 'Nome deve ter pelo menos 3 caracteres';
     }
 
-    // Valor obrigatório
     if (!formData.amount) {
       newErrors.amount = 'Valor é obrigatório';
     } else {
@@ -127,7 +112,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
       }
     }
 
-    // Validações específicas por tipo de recorrência
     if (formData.recurrenceType === 'monthly') {
       if (!formData.dayOfMonth) {
         newErrors.dayOfMonth = 'Dia do vencimento é obrigatório';
@@ -150,7 +134,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
       }
     }
     
-    // Data de início obrigatória
     if (!formData.startDate) {
       newErrors.startDate = 'Data de início é obrigatória';
     }
@@ -173,7 +156,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     }
 
     try {
-      // Preparar dados para salvar
       const dataToSave = {
         name: formData.name.trim(),
         amount: parseFloat(formData.amount),
@@ -184,7 +166,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
         clientName: client.name
       };
 
-      // Adicionar campos específicos baseado no tipo de recorrência
       if (formData.recurrenceType === 'monthly') {
         dataToSave.dayOfMonth = parseInt(formData.dayOfMonth);
       } else if (formData.recurrenceType === 'weekly') {
@@ -194,7 +175,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
       }
 
       console.log('Dados da assinatura para salvar:', dataToSave);
-      
       await onSave(dataToSave);
       
     } catch (error) {
@@ -203,7 +183,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     }
   };
 
-  // Função para gerar descrição da recorrência
   const getRecurrenceDescription = () => {
     switch (formData.recurrenceType) {
       case 'daily':
@@ -220,7 +199,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
     }
   };
 
-  // Gerar opções para dia do mês
   const dayOptions = [];
   for (let i = 1; i <= 31; i++) {
     dayOptions.push(
@@ -241,7 +219,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
       title={subscription ? 'Editar Assinatura' : `Nova Assinatura para ${client.name}`}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Erro geral */}
         {errors.general && (
           <div className="alert alert-error">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -254,7 +231,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         )}
 
-        {/* Informação do cliente */}
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
           <div className="flex">
             <svg className="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -271,7 +247,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         </div>
 
-        {/* Nome da Assinatura */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nome da Assinatura *
@@ -302,7 +277,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           )}
         </div>
 
-        {/* Valor */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Valor (R$) *
@@ -331,7 +305,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           )}
         </div>
 
-        {/* Tipo de Recorrência */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Frequência de Cobrança *
@@ -378,7 +351,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         </div>
 
-        {/* Configurações específicas por tipo */}
         {formData.recurrenceType === 'weekly' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -460,7 +432,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         )}
 
-        {/* Data de Início */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Data de Início *
@@ -490,7 +461,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           )}
         </div>
 
-        {/* Status */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Status *
@@ -513,7 +483,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </p>
         </div>
 
-        {/* Preview */}
         {formData.name && formData.amount && (
           <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-md p-4">
             <h4 className="text-sm font-medium text-orange-900 mb-3 flex items-center">
@@ -551,7 +520,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         )}
 
-        {/* Botões */}
         <div className="flex justify-end space-x-3 pt-4">
           <button 
             type="button" 

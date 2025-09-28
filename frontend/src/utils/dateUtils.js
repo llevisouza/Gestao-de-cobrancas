@@ -1,5 +1,3 @@
-// utils/dateUtils.js - Versão Corrigida
-
 /**
  * Obtém a data atual no formato YYYY-MM-DD
  * @returns {string} Data atual
@@ -370,4 +368,40 @@ export const getAge = (dateString) => {
   
   const years = Math.floor(diffDays / 365);
   return { text: `${years} ano${years > 1 ? 's' : ''}`, value: years, unit: 'year' };
+};
+
+/**
+ * Adiciona semanas a uma data
+ * @param {Date} date - Data base
+ * @param {number} weeks - Número de semanas a adicionar
+ * @returns {string} Nova data no formato YYYY-MM-DD
+ */
+export const addWeeks = (date, weeks) => {
+  try {
+    const result = new Date(date);
+    result.setDate(result.getDate() + weeks * 7);
+    return result.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('❌ Erro ao adicionar semanas:', error);
+    return date.toISOString().split('T')[0];
+  }
+};
+
+/**
+ * Adiciona meses a uma data, respeitando o dia do mês especificado
+ * @param {Date} date - Data base
+ * @param {number} months - Número de meses a adicionar
+ * @param {number} dayOfMonth - Dia do mês desejado
+ * @returns {string} Nova data no formato YYYY-MM-DD
+ */
+export const addMonths = (date, months, dayOfMonth) => {
+  try {
+    const result = new Date(date);
+    result.setMonth(result.getMonth() + months);
+    if (dayOfMonth) result.setDate(Math.min(dayOfMonth, new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()));
+    return result.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('❌ Erro ao adicionar meses:', error);
+    return date.toISOString().split('T')[0];
+  }
 };

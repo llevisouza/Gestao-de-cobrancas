@@ -1,7 +1,7 @@
 module.exports = {
   root: true,
   env: {
-    es6: true,
+    es2021: true,
     node: true,
   },
   extends: [
@@ -16,6 +16,7 @@ module.exports = {
   parserOptions: {
     project: ["tsconfig.json", "tsconfig.dev.json"],
     sourceType: "module",
+    ecmaVersion: 12,
   },
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
@@ -26,8 +27,12 @@ module.exports = {
     "import",
   ],
   rules: {
-    "quotes": ["error", "double"],
+    "quotes": ["error", "single"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
+    "no-console": "warn",
+    "require-jsdoc": "off",
+    "valid-jsdoc": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
   },
 };

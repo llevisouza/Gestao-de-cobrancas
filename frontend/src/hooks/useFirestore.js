@@ -1,4 +1,3 @@
-// src/hooks/useFirestore.js - VERSÃO SUPER OTIMIZADA
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFirebaseAuth } from './useFirebaseAuth';
 import { clientService, subscriptionService, invoiceService } from '../services/firestore';

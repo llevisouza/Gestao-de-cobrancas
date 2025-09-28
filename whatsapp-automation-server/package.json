@@ -13,7 +13,6 @@
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "firebase-admin": "^12.7.0",
-    "node-cron": "^3.0.3",
-    "whatsapp-automation-server": "file:"
+    "node-cron": "^3.0.3"
   }
 }

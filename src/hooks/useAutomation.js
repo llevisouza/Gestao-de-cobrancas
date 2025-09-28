@@ -1,416 +1,484 @@
-// src/hooks/useAutomation.js - VERSÃO CORRIGIDA
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+// src/hooks/useAutomation.js - VERSÃO CORRIGIDA COMPLETA
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3001/api';
 
 export const useAutomation = () => {
-  const [isRunning, setIsRunning] = useState(null); // null = não carregado ainda
-  const [config, setConfig] = useState({});
+  // ✅ Estados principais
+  const [isRunning, setIsRunning] = useState(null); // null = loading, true/false = estado
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({});
   const [logs, setLogs] = useState([]);
+  const [config, setConfig] = useState({});
   const [connectionStatus, setConnectionStatus] = useState(null);
+  
+  // ✅ Refs para controle
+  const pollingRef = useRef(null);
+  const sseRef = useRef(null);
+  const mountedRef = useRef(true);
+  const retryTimeoutRef = useRef(null);
+  const lastStatusRef = useRef(null);
 
-  // ✅ Função para buscar status com retry e melhor error handling
-  const fetchStatus = useCallback(async (retries = 3, showLoading = true) => {
-    if (showLoading) setLoading(true);
-    
-    for (let i = 0; i < retries; i++) {
-      try {
-        console.log(`📡 [useAutomation] Buscando status (tentativa ${i + 1})...`);
-        
-        const response = await axios.get(`${API_BASE_URL}/automation/status`, {
-          timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
+  // ✅ Função para fazer requests
+  const apiRequest = useCallback(async (endpoint, options = {}) => {
+    const url = `${API_BASE}${endpoint}`;
+    const requestOptions = {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    };
 
-        console.log('✅ [useAutomation] Status recebido:', response.data);
-        
-        // ✅ Atualizar estados baseado na resposta
-        setIsRunning(response.data.isRunning);
-        setConfig(response.data.config || {});
-        setStats(response.data.stats || {});
-        setError(null);
-        
-        if (showLoading) setLoading(false);
-        return response.data;
-        
-      } catch (err) {
-        console.error(`❌ [useAutomation] Erro na tentativa ${i + 1}:`, err.message);
-        
-        if (i === retries - 1) {
-          // Última tentativa falhou
-          setError(`Falha ao conectar: ${err.message}`);
-          setIsRunning(false); // Assumir parado se não conseguir conectar
-          if (showLoading) setLoading(false);
-          return { isRunning: false, error: err.message };
-        } else {
-          // Tentar novamente após delay
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-        }
-      }
-    }
-  }, []);
-
-  // ✅ Iniciar automação com feedback imediato
-  const startAutomation = useCallback(async () => {
-    console.log('🚀 [useAutomation] Iniciando automação...');
-    setLoading(true);
-    setError(null);
-    
     try {
-      const response = await axios.post(`${API_BASE_URL}/automation/start`, {}, {
-        timeout: 30000, // 30 segundos para dar tempo
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      console.log(`🌐 [useAutomation] Fazendo request: ${options.method || 'GET'} ${url}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      
+      const response = await fetch(url, {
+        ...requestOptions,
+        signal: controller.signal
       });
       
-      console.log('✅ [useAutomation] Resposta do start:', response.data);
+      clearTimeout(timeoutId);
       
-      if (response.data.success) {
-        // ✅ Atualizar estado imediatamente
-        setIsRunning(true);
-        
-        // ✅ Verificar status após 2 segundos para confirmar
-        setTimeout(() => {
-          fetchStatus(1, false); // 1 tentativa, sem loading
-        }, 2000);
-        
-        return { success: true, message: 'Automação iniciada!' };
-      } else {
-        throw new Error(response.data.error || 'Falha ao iniciar');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro ao iniciar:', err.message);
-      setError(`Erro ao iniciar: ${err.message}`);
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchStatus]);
-
-  // ✅ Parar automação com feedback imediato
-  const stopAutomation = useCallback(async () => {
-    console.log('🛑 [useAutomation] Parando automação...');
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await axios.post(`${API_BASE_URL}/automation/stop`, {}, {
-        timeout: 15000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const data = await response.json();
+      console.log(`✅ [useAutomation] Response recebida de ${endpoint}:`, data);
+      return data;
       
-      console.log('✅ [useAutomation] Resposta do stop:', response.data);
-      
-      if (response.data.success) {
-        // ✅ Atualizar estado imediatamente
-        setIsRunning(false);
-        
-        // ✅ Verificar status após 1 segundo para confirmar
-        setTimeout(() => {
-          fetchStatus(1, false);
-        }, 1000);
-        
-        return { success: true, message: 'Automação parada!' };
-      } else {
-        throw new Error(response.data.error || 'Falha ao parar');
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Timeout na requisição');
       }
-      
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro ao parar:', err.message);
-      setError(`Erro ao parar: ${err.message}`);
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
+      console.error(`❌ [useAutomation] Erro na requisição ${url}:`, error);
+      throw error;
     }
-  }, [fetchStatus]);
+  }, []);
 
-  // ✅ Executar ciclo manual
-  const runManualCycle = useCallback(async () => {
-    console.log('🔄 [useAutomation] Executando ciclo manual...');
-    setLoading(true);
-    setError(null);
+  // ✅ Buscar status inicial e configurar polling
+  const fetchStatus = useCallback(async (showLoading = true) => {
+    if (!mountedRef.current) return;
     
     try {
-      const response = await axios.post(`${API_BASE_URL}/automation/manual-cycle`, {}, {
-        timeout: 30000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('✅ [useAutomation] Resultado do ciclo manual:', response.data);
-      
-      // ✅ Atualizar stats após ciclo manual
-      setTimeout(() => {
-        fetchStatus(1, false);
-      }, 1000);
-      
-      return response.data;
-      
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro no ciclo manual:', err.message);
-      setError(`Erro no ciclo manual: ${err.message}`);
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchStatus]);
-
-  // ✅ Atualizar configuração
-  const updateConfig = useCallback(async (newConfig) => {
-    console.log('⚙️ [useAutomation] Atualizando configuração:', newConfig);
-    setLoading(true);
-    
-    try {
-      const response = await axios.put(`${API_BASE_URL}/automation/config`, {
-        config: newConfig
-      }, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('✅ [useAutomation] Configuração atualizada:', response.data);
-      
-      if (response.data.success) {
-        setConfig(response.data.config || newConfig);
-        return { success: true, config: response.data.config };
+      if (showLoading && isRunning === null) {
+        setLoading(true);
       }
-      
-      return response.data;
-      
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro ao atualizar config:', err.message);
-      setError(`Erro na configuração: ${err.message}`);
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ✅ Testar conexões
-  const testConnections = useCallback(async () => {
-    console.log('🔍 [useAutomation] Testando conexões...');
-    setLoading(true);
-    
-    try {
-      const response = await axios.get(`${API_BASE_URL}/health`, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('✅ [useAutomation] Health check:', response.data);
-      setConnectionStatus(response.data.health);
-      return response.data;
-      
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro no teste:', err.message);
-      setError(`Erro no teste: ${err.message}`);
-      setConnectionStatus({ database: false, whatsapp: { connected: false }, error: err.message });
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ✅ Buscar estatísticas
-  const getAutomationStats = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/automation/performance?days=7`, {
-        timeout: 10000
-      });
-      
-      console.log('📊 [useAutomation] Stats recebidas:', response.data);
-      setStats(response.data.report || {});
-      return response.data;
-      
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro nas stats:', err.message);
-      return { error: err.message };
-    }
-  }, []);
-
-  // ✅ Buscar logs
-  const getLogs = useCallback(async (limit = 50) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/automation/logs?limit=${limit}`, {
-        timeout: 10000
-      });
-      
-      console.log('📜 [useAutomation] Logs recebidos:', response.data);
-      setLogs(response.data.logs || []);
-      return response.data.logs || [];
-      
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro nos logs:', err.message);
-      return [];
-    }
-  }, []);
-
-  // ✅ Reset completo
-  const resetAutomation = useCallback(async () => {
-    console.log('🔄 [useAutomation] Fazendo reset...');
-    setLoading(true);
-    
-    try {
-      const response = await axios.post(`${API_BASE_URL}/automation/reset`, {}, {
-        timeout: 15000
-      });
-      
-      console.log('✅ [useAutomation] Reset concluído:', response.data);
-      
-      // ✅ Limpar estados locais
-      setIsRunning(false);
-      setStats({});
-      setLogs([]);
       setError(null);
+
+      console.log('📊 [useAutomation] Buscando status...');
+      const data = await apiRequest('/automation/status');
       
-      // ✅ Recarregar status
-      setTimeout(() => {
-        fetchStatus();
-      }, 1000);
+      if (!mountedRef.current) return;
+
+      console.log('✅ [useAutomation] Status recebido:', {
+        isRunning: data.isRunning,
+        enabled: data.config?.enabled
+      });
+
+      // ✅ Atualizar estado APENAS se mudou
+      if (lastStatusRef.current !== data.isRunning) {
+        console.log(`🔄 [useAutomation] Status mudou: ${lastStatusRef.current} -> ${data.isRunning}`);
+        setIsRunning(data.isRunning);
+        lastStatusRef.current = data.isRunning;
+      }
       
-      return response.data;
+      setStats(data.stats || {});
+      setConfig(data.config || {});
+      setConnectionStatus(data.connectionStatus || null);
       
-    } catch (err) {
-      console.error('❌ [useAutomation] Erro no reset:', err.message);
-      setError(`Erro no reset: ${err.message}`);
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
+      // ✅ Se estava carregando, parar loading
+      if (showLoading) {
+        setLoading(false);
+      }
+
+    } catch (error) {
+      if (!mountedRef.current) return;
+      
+      console.error('❌ [useAutomation] Erro ao buscar status:', error);
+      setError(`Erro de conexão: ${error.message}`);
+      
+      if (showLoading) {
+        setLoading(false);
+      }
+      
+      // ✅ Tentar reconectar em 5 segundos
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+      retryTimeoutRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          console.log('🔄 [useAutomation] Tentando reconectar...');
+          fetchStatus(false);
+        }
+      }, 5000);
     }
-  }, [fetchStatus]);
+  }, [apiRequest, isRunning]);
 
-  // ✅ Carregar status inicial
-  useEffect(() => {
-    console.log('🛠️ [useAutomation] Hook inicializado, carregando status...');
-    fetchStatus();
-  }, [fetchStatus]);
+  // ✅ Configurar Server-Sent Events
+  const setupSSE = useCallback(() => {
+    // ✅ Fechar conexão anterior se existir
+    if (sseRef.current) {
+      console.log('🔌 [useAutomation] Fechando conexão SSE anterior');
+      sseRef.current.close();
+    }
 
-  // ✅ Polling periódico para manter sincronizado (a cada 30 segundos)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!loading) {
-        console.log('🔄 [useAutomation] Polling status...');
-        fetchStatus(1, false); // 1 tentativa, sem loading
+    try {
+      console.log('📡 [useAutomation] Configurando SSE...');
+      const eventSource = new EventSource(`${API_BASE}/automation/events`);
+      sseRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        console.log('✅ [useAutomation] Conexão SSE estabelecida');
+        setError(null);
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          if (!mountedRef.current) return;
+          
+          const data = JSON.parse(event.data);
+          console.log('📨 [useAutomation] Dados SSE recebidos:', {
+            isRunning: data.isRunning,
+            enabled: data.config?.enabled
+          });
+
+          // ✅ Atualizar estado apenas se mudou
+          if (lastStatusRef.current !== data.isRunning) {
+            console.log(`🔄 [useAutomation] SSE - Status mudou: ${lastStatusRef.current} -> ${data.isRunning}`);
+            setIsRunning(data.isRunning);
+            lastStatusRef.current = data.isRunning;
+          }
+          
+          setStats(data.stats || {});
+          setConfig(data.config || {});
+          setConnectionStatus(data.connectionStatus || null);
+          setLoading(false);
+          
+        } catch (error) {
+          console.error('❌ [useAutomation] Erro ao processar dados SSE:', error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('❌ [useAutomation] Erro na conexão SSE:', error);
+        
+        if (eventSource.readyState === EventSource.CLOSED) {
+          console.log('🔄 [useAutomation] SSE fechado, tentando reconectar...');
+          
+          // ✅ Tentar reconectar após delay
+          setTimeout(() => {
+            if (mountedRef.current) {
+              setupSSE();
+            }
+          }, 5000);
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro ao configurar SSE:', error);
+      
+      // ✅ Fallback para polling se SSE falhar
+      startPolling();
+    }
+  }, []);
+
+  // ✅ Polling de backup
+  const startPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
+    
+    console.log('⏰ [useAutomation] Iniciando polling de backup a cada 30s');
+    pollingRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        fetchStatus(false);
       }
     }, 30000); // 30 segundos
+  }, [fetchStatus]);
 
-    return () => clearInterval(interval);
-  }, [fetchStatus, loading]);
-
-  // ✅ SSE para updates em tempo real (se disponível)
+  // ✅ Inicialização
   useEffect(() => {
-    console.log('📡 [useAutomation] Tentando conectar SSE...');
+    console.log('🚀 [useAutomation] Hook inicializado');
+    mountedRef.current = true;
     
-    let eventSource;
-    let reconnectTimeout;
+    // ✅ Buscar status inicial
+    fetchStatus(true);
     
-    const connectSSE = () => {
-      try {
-        eventSource = new EventSource(`${API_BASE_URL}/automation/events`);
-        
-        eventSource.onopen = () => {
-          console.log('✅ [useAutomation] SSE conectado');
-          setError(null);
-        };
-        
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            console.log('📨 [useAutomation] SSE update:', data);
-            
-            // ✅ Atualizar estados com dados do SSE
-            if (data.isRunning !== undefined) {
-              setIsRunning(data.isRunning);
-            }
-            if (data.config) {
-              setConfig(data.config);
-            }
-            if (data.stats) {
-              setStats(data.stats);
-            }
-            
-            setLoading(false);
-            setError(null);
-            
-          } catch (parseError) {
-            console.error('❌ [useAutomation] Erro ao processar SSE:', parseError);
-          }
-        };
-        
-        eventSource.onerror = (error) => {
-          console.error('❌ [useAutomation] Erro SSE:', error);
-          eventSource.close();
-          
-          // ✅ Reconectar após 5 segundos
-          reconnectTimeout = setTimeout(() => {
-            console.log('🔄 [useAutomation] Tentando reconectar SSE...');
-            connectSSE();
-          }, 5000);
-        };
-        
-      } catch (error) {
-        console.error('❌ [useAutomation] Erro ao conectar SSE:', error);
-      }
-    };
+    // ✅ Configurar SSE
+    setupSSE();
     
-    // Conectar SSE
-    connectSSE();
-    
+    // ✅ Iniciar polling de backup
+    startPolling();
+
     // ✅ Cleanup
     return () => {
-      if (eventSource) {
-        console.log('🛑 [useAutomation] Fechando SSE');
-        eventSource.close();
+      console.log('🧹 [useAutomation] Cleanup do hook');
+      mountedRef.current = false;
+      
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
       }
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
+      
+      if (sseRef.current) {
+        sseRef.current.close();
+      }
+      
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
       }
     };
-  }, []);
+  }, [fetchStatus, setupSSE, startPolling]);
+
+  // ✅ AÇÕES DA AUTOMAÇÃO
+  
+  const startAutomation = useCallback(async () => {
+    try {
+      console.log('🚀 [useAutomation] Iniciando automação...');
+      setLoading(true);
+      setError(null);
+
+      const result = await apiRequest('/automation/start', {
+        method: 'POST'
+      });
+
+      if (result.success) {
+        console.log('✅ [useAutomation] Automação iniciada com sucesso');
+        
+        // ✅ Atualizar estado imediatamente
+        setIsRunning(true);
+        lastStatusRef.current = true;
+        
+        // ✅ Buscar status atualizado após 1 segundo
+        setTimeout(() => {
+          if (mountedRef.current) {
+            fetchStatus(false);
+          }
+        }, 1000);
+        
+        return { success: true, message: 'Automação iniciada com sucesso!' };
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro ao iniciar automação:', error);
+      setError(error.message);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest, fetchStatus]);
+
+  const stopAutomation = useCallback(async () => {
+    try {
+      console.log('🛑 [useAutomation] Parando automação...');
+      setLoading(true);
+      setError(null);
+
+      const result = await apiRequest('/automation/stop', {
+        method: 'POST'
+      });
+
+      if (result.success) {
+        console.log('✅ [useAutomation] Automação parada com sucesso');
+        
+        // ✅ Atualizar estado imediatamente
+        setIsRunning(false);
+        lastStatusRef.current = false;
+        
+        // ✅ Buscar status atualizado após 1 segundo
+        setTimeout(() => {
+          if (mountedRef.current) {
+            fetchStatus(false);
+          }
+        }, 1000);
+        
+        return { success: true, message: 'Automação parada com sucesso!' };
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro ao parar automação:', error);
+      setError(error.message);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest, fetchStatus]);
+
+  const runManualCycle = useCallback(async () => {
+    try {
+      console.log('🔄 [useAutomation] Executando ciclo manual...');
+      setError(null);
+
+      const result = await apiRequest('/automation/manual-cycle', {
+        method: 'POST'
+      });
+
+      if (result.success) {
+        console.log('✅ [useAutomation] Ciclo manual executado:', result);
+        
+        // ✅ Atualizar status após ciclo
+        setTimeout(() => {
+          if (mountedRef.current) {
+            fetchStatus(false);
+          }
+        }, 1000);
+        
+        return { success: true, result: result.result };
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro no ciclo manual:', error);
+      return { success: false, error: error.message };
+    }
+  }, [apiRequest, fetchStatus]);
+
+  const testConnections = useCallback(async () => {
+    try {
+      console.log('🔍 [useAutomation] Testando conexões...');
+      setError(null);
+
+      const result = await apiRequest('/health');
+      
+      if (result.success) {
+        setConnectionStatus(result.health);
+        return { success: true, connections: result.health };
+      } else {
+        throw new Error(result.error || 'Erro no teste de conexão');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro ao testar conexões:', error);
+      return { success: false, error: error.message };
+    }
+  }, [apiRequest]);
+
+  const resetAutomation = useCallback(async () => {
+    try {
+      console.log('🔄 [useAutomation] Fazendo reset...');
+      setLoading(true);
+      setError(null);
+
+      const result = await apiRequest('/automation/reset', {
+        method: 'POST'
+      });
+
+      if (result.success) {
+        console.log('✅ [useAutomation] Reset concluído');
+        
+        // ✅ Resetar estado local
+        setIsRunning(false);
+        lastStatusRef.current = false;
+        setStats({});
+        setLogs([]);
+        
+        // ✅ Buscar status atualizado
+        setTimeout(() => {
+          if (mountedRef.current) {
+            fetchStatus(false);
+          }
+        }, 1000);
+        
+        return { success: true, message: 'Reset concluído!' };
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro no reset:', error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest, fetchStatus]);
+
+  const getAutomationStats = useCallback(async () => {
+    try {
+      console.log('📊 [useAutomation] Buscando estatísticas...');
+      const result = await apiRequest('/automation/performance?days=7');
+      
+      if (result.success) {
+        setStats(result.report || {});
+        return { success: true, stats: result.report };
+      } else {
+        throw new Error(result.error || 'Erro ao buscar estatísticas');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro ao buscar stats:', error);
+      return { success: false, error: error.message };
+    }
+  }, [apiRequest]);
+
+  const getLogs = useCallback(async (limit = 20) => {
+    try {
+      console.log(`📜 [useAutomation] Buscando logs (${limit})...`);
+      const result = await apiRequest(`/automation/logs?limit=${limit}`);
+      
+      if (result.success) {
+        setLogs(result.logs || []);
+        return { success: true, logs: result.logs };
+      } else {
+        throw new Error(result.error || 'Erro ao buscar logs');
+      }
+      
+    } catch (error) {
+      console.error('❌ [useAutomation] Erro ao buscar logs:', error);
+      return { success: false, error: error.message };
+    }
+  }, [apiRequest]);
+
+  // ✅ UTILITÁRIOS
+  const canStart = !loading && !isRunning;
+  const canStop = !loading && isRunning;
+  const isConnected = connectionStatus?.database && connectionStatus?.whatsapp?.connected;
+
+  // ✅ Debug em desenvolvimento
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🐛 [useAutomation] Estado atual:', {
+        isRunning,
+        loading,
+        error,
+        canStart,
+        canStop,
+        isConnected
+      });
+    }
+  }, [isRunning, loading, error, canStart, canStop, isConnected]);
 
   return {
-    // ✅ Estados
+    // Estados
     isRunning,
-    config,
     loading,
     error,
     stats,
     logs,
+    config,
     connectionStatus,
-
-    // ✅ Ações principais
+    
+    // Ações
     startAutomation,
     stopAutomation,
     runManualCycle,
-    updateConfig,
     resetAutomation,
-
-    // ✅ Informações
+    testConnections,
     getAutomationStats,
     getLogs,
-    testConnections,
-    getStatus: fetchStatus,
-
-    // ✅ Utilitários
-    isConnected: connectionStatus?.database && connectionStatus?.whatsapp?.connected,
-    hasError: !!error,
-    isLoading: loading,
-    canStart: !loading && !isRunning,
-    canStop: !loading && isRunning
+    
+    // Utilitários
+    canStart,
+    canStop,
+    isConnected,
+    
+    // Funções adicionais
+    refreshStatus: () => fetchStatus(false)
   };
 };

@@ -1,15 +1,10 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # Dependencies
-frontend/node_modules/
-backend/node_modules/
-.pnp
-.pnp.js
+*/node_modules/
 
 # Testing
 /coverage
 
-# Production builds (specific to frontend)
+# Production builds
 frontend/build/
 
 # Environment variables
@@ -30,8 +25,6 @@ ui-debug.log*
 
 # Logs
 npm-debug.log*
-yarn-debug.log*  # Removido, irrelevante se usar apenas npm
-yarn-error.log*  # Removido, irrelevante se usar apenas npm
 
 # IDE and editor files
 .vscode/
@@ -45,8 +38,8 @@ yarn-error.log*  # Removido, irrelevante se usar apenas npm
 Thumbs.db
 ehthumbs.db
 
-# Package lock file (choose to ignore or not based on team workflow)
-# package-lock.json  # Descomente se quiser ignorar
+# Package lock file
+package-lock.json  # Ignorar, a menos que equipe use
 
 # Optional eslint cache
 .eslintcache
@@ -56,9 +49,6 @@ ehthumbs.db
 
 # Output of 'npm pack'
 *.tgz
-
-# Yarn Integrity file (removido, irrelevante para npm)
-# .yarn-integrity
 
 # External directories
 evolution-api/

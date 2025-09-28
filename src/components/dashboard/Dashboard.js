@@ -1,4 +1,4 @@
-// src/components/dashboard/Dashboard.js - VERSÃO COMPLETA OTIMIZADA
+// src/components/dashboard/Dashboard.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import KPICards from './KPICards';
@@ -13,12 +13,12 @@ const Dashboard = ({ onNavigate }) => {
     clients, 
     subscriptions, 
     invoices, 
-    loading, 
+    loading: firestoreLoading, 
     createExampleData,
     generateInvoices 
   } = useFirestore();
 
-  // ⚡ OTIMIZAÇÃO: Estados locais otimizados
+  // Estados locais
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [quickActions, setQuickActions] = useState({
     generateInvoices: false,
@@ -29,37 +29,28 @@ const Dashboard = ({ onNavigate }) => {
   const [showAnimations, setShowAnimations] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
 
-  // ⚡ OTIMIZAÇÃO: Atualizar relógio com intervalo otimizado
+  // Atualizar relógio a cada minuto
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // ⚡ Atualizar a cada minuto em vez de a cada segundo
-    
+    }, 60000);
     return () => clearInterval(timer);
   }, []);
-    // ✅ CORREÇÃO: Função para determinar status real da fatura
-    const getActualInvoiceStatus = (invoice) => {
-      if (invoice.status === 'pago') {
-        return 'pago'; // Se já está pago, manter como pago
-      }
-      
-      // Calcular diferença de dias
-      const daysDiff = getDaysDifference(invoice.dueDate);
-      
-      // ✅ CORREÇÃO: Só marcar como vencida se passou da data (dias negativos)
-      if (daysDiff < 0) {
-        return 'vencida'; // Vencida (data já passou)
-      } else {
-        return 'pendente'; // Pendente (hoje ou futuro)
-      }
-    };
-  // ⚡ OTIMIZAÇÃO: Calcular métricas com useMemo para evitar recálculos
-    const dashboardMetrics = useMemo(() => {
-      console.log('🔄 Recalculando métricas do dashboard...');
-    
+
+  // Função para determinar status real da fatura
+  const getActualInvoiceStatus = (invoice) => {
+    if (invoice.status === 'pago') {
+      return 'pago';
+    }
+    const daysDiff = getDaysDifference(invoice.dueDate);
+    return daysDiff < 0 ? 'vencida' : 'pendente';
+  };
+
+  // Calcular métricas com useMemo
+  const dashboardMetrics = useMemo(() => {
+    console.log('🔄 Recalculando métricas do dashboard...');
     const today = new Date().toISOString().split('T')[0];
-    
-    // ✅ CORREÇÃO: Usar a nova função para status correto
+
     const correctedInvoices = invoices.map(invoice => ({
       ...invoice,
       actualStatus: getActualInvoiceStatus(invoice)
@@ -70,24 +61,22 @@ const Dashboard = ({ onNavigate }) => {
     ).length;
 
     const pendingAmount = correctedInvoices
-        .filter(inv => inv.actualStatus === 'pendente')
-        .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+      .filter(inv => inv.actualStatus === 'pendente')
+      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
-    const overdueCount = correctedInvoices.filter(inv => inv.actualStatus === 'overdue').length;
+    const overdueCount = correctedInvoices.filter(inv => inv.actualStatus === 'vencida').length;
     const overdueAmount = correctedInvoices
-      .filter(inv => inv.actualStatus === 'overdue')
+      .filter(inv => inv.actualStatus === 'vencida')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
     const totalRevenue = correctedInvoices
-      .filter(inv => inv.actualStatus === 'paid')
+      .filter(inv => inv.actualStatus === 'pago')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
     const paymentRate = correctedInvoices.length > 0 
-      ? (correctedInvoices.filter(inv => inv.actualStatus === 'paid').length / correctedInvoices.length * 100)
+      ? (correctedInvoices.filter(inv => inv.actualStatus === 'pago').length / correctedInvoices.length * 100)
       : 0;
 
-
-    // Atividade recente (últimas ações)
     const recentActivity = [
       ...correctedInvoices.slice(0, 3).map(inv => ({
         id: inv.id,
@@ -121,7 +110,7 @@ const Dashboard = ({ onNavigate }) => {
     };
   }, [invoices, clients, subscriptions]);
 
-  // ⚡ OTIMIZAÇÃO: Estatísticas de recorrência memoizadas
+  // Estatísticas de recorrência
   const recurrenceStats = useMemo(() => {
     const stats = {
       daily: { count: 0, revenue: 0, color: 'bg-blue-500' },
@@ -140,10 +129,9 @@ const Dashboard = ({ onNavigate }) => {
     return stats;
   }, [subscriptions]);
 
-  // ⚡ OTIMIZAÇÃO: Sistema de notificações inteligentes
+  // Sistema de notificações
   useEffect(() => {
     const newNotifications = [];
-    
     if (dashboardMetrics.overdueCount > 0) {
       newNotifications.push({
         id: 'overdue',
@@ -154,7 +142,6 @@ const Dashboard = ({ onNavigate }) => {
         priority: 'high'
       });
     }
-
     if (dashboardMetrics.pendingAmount > 1000) {
       newNotifications.push({
         id: 'pending',
@@ -165,7 +152,6 @@ const Dashboard = ({ onNavigate }) => {
         priority: 'medium'
       });
     }
-
     if (dashboardMetrics.paymentRate < 70 && dashboardMetrics.correctedInvoices.length > 5) {
       newNotifications.push({
         id: 'low_payment_rate',
@@ -176,19 +162,18 @@ const Dashboard = ({ onNavigate }) => {
         priority: 'medium'
       });
     }
-
     setNotifications(newNotifications);
   }, [dashboardMetrics]);
 
-  // ⚡ OTIMIZAÇÃO: Handlers otimizados com useCallback
+  // Handlers otimizados
   const handleCreateExampleData = useCallback(async () => {
     try {
       setQuickActions(prev => ({ ...prev, createExample: true }));
       await createExampleData();
-      showNotification('success', '🎉 Dados criados!', 'Exemplos com diferentes recorrências foram adicionados');
+      showNotification('success', 'Dados Criados', 'Exemplos com diferentes recorrências foram adicionados');
     } catch (error) {
       console.error('Erro ao criar dados de exemplo:', error);
-      showNotification('error', '❌ Erro', error.message);
+      showNotification('error', 'Erro', error.message);
     } finally {
       setQuickActions(prev => ({ ...prev, createExample: false }));
     }
@@ -198,23 +183,20 @@ const Dashboard = ({ onNavigate }) => {
     try {
       setQuickActions(prev => ({ ...prev, generateInvoices: true }));
       const count = await generateInvoices();
-      
       if (count > 0) {
-        showNotification('success', '🚀 Faturas geradas!', `${count} novas faturas baseadas nas recorrências`);
+        showNotification('success', 'Faturas Geradas', `${count} novas faturas baseadas nas recorrências`);
       } else {
-        showNotification('info', 'ℹ️ Nenhuma fatura', 'Todas as faturas estão em dia ou não é o momento da próxima cobrança');
+        showNotification('info', 'Nenhuma Fatura', 'Todas as faturas estão em dia ou não é o momento da próxima cobrança');
       }
     } catch (error) {
       console.error('Erro ao gerar faturas:', error);
-      showNotification('error', '❌ Erro', error.message);
+      showNotification('error', 'Erro', error.message);
     } finally {
       setQuickActions(prev => ({ ...prev, generateInvoices: false }));
     }
   }, [generateInvoices]);
 
-  // ⚡ OTIMIZAÇÃO: Sistema de notificação simples
   const showNotification = useCallback((type, title, message) => {
-    // Por enquanto usar alert simples - pode ser substituído por toast
     const icons = {
       success: '✅',
       error: '❌',
@@ -224,7 +206,6 @@ const Dashboard = ({ onNavigate }) => {
     alert(`${icons[type]} ${title}\n${message}`);
   }, []);
 
-  // ⚡ OTIMIZAÇÃO: Função de saudação otimizada
   const getGreeting = useCallback(() => {
     const hour = currentTime.getHours();
     if (hour < 12) return '🌅 Bom dia';
@@ -232,15 +213,13 @@ const Dashboard = ({ onNavigate }) => {
     return '🌙 Boa noite';
   }, [currentTime]);
 
-  // ⚡ OTIMIZAÇÃO: Loading otimizado com skeleton
-  if (loading) {
+  if (firestoreLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
         <div className="dashboard-container">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
             <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className="bg-white p-6 rounded-2xl shadow-lg border">
@@ -250,7 +229,6 @@ const Dashboard = ({ onNavigate }) => {
                 </div>
               ))}
             </div>
-            
             <div className="bg-white rounded-2xl shadow-lg border p-6">
               <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
               <div className="space-y-3">
@@ -260,7 +238,6 @@ const Dashboard = ({ onNavigate }) => {
               </div>
             </div>
           </div>
-          
           <div className="text-center mt-8">
             <LoadingSpinner size="large" />
             <p className="mt-4 text-gray-600 animate-pulse">Carregando dashboard otimizado...</p>
@@ -273,12 +250,9 @@ const Dashboard = ({ onNavigate }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-orange-50">
       <div className="dashboard-container">
-        
-        {/* Header Otimizado */}
+        {/* Header */}
         <div className="dashboard-header mb-8">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-            
-            {/* Saudação Otimizada */}
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex flex-col">
@@ -291,8 +265,6 @@ const Dashboard = ({ onNavigate }) => {
                   </p>
                 </div>
               </div>
-              
-              {/* Status Bar Otimizado */}
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -304,13 +276,8 @@ const Dashboard = ({ onNavigate }) => {
                     minute: '2-digit' 
                   })}
                 </div>
-                <div className="text-gray-500">
-
-                </div>
               </div>
             </div>
-            
-            {/* Ações Rápidas Otimizadas */}
             <div className="flex items-center gap-3">
               <button 
                 onClick={handleCreateExampleData}
@@ -334,7 +301,6 @@ const Dashboard = ({ onNavigate }) => {
                   </>
                 )}
               </button>
-              
               <button 
                 onClick={handleGenerateInvoices}
                 disabled={quickActions.generateInvoices}
@@ -359,7 +325,7 @@ const Dashboard = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Sistema de Notificações Otimizado */}
+        {/* Notificações */}
         {notifications.length > 0 && (
           <div className="mb-8 space-y-3">
             {notifications.slice(0, 3).map(notification => (
@@ -390,7 +356,7 @@ const Dashboard = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Métricas em Tempo Real Otimizadas */}
+        {/* Métricas em Tempo Real */}
         {dashboardMetrics.totalClients > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
@@ -398,8 +364,6 @@ const Dashboard = ({ onNavigate }) => {
                 <span className="text-2xl">📊</span>
                 Métricas em Tempo Real
               </h3>
-            
-              {/* Filtro de Período */}
               <div className="flex bg-white rounded-lg p-1 shadow-sm border">
                 {[
                   { key: 'today', label: 'Hoje' },
@@ -420,7 +384,6 @@ const Dashboard = ({ onNavigate }) => {
                 ))}
               </div>
             </div>
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 {
@@ -467,15 +430,12 @@ const Dashboard = ({ onNavigate }) => {
                       {stat.trend}
                     </div>
                   </div>
-                  
                   <div className="text-2xl font-bold text-gray-900 mb-1">
                     {stat.value}
                   </div>
                   <div className="text-sm text-gray-600">
                     {stat.title}
                   </div>
-                  
-                  {/* Mini Progress Bar */}
                   <div className="mt-3 w-full bg-gray-200 rounded-full h-1.5">
                     <div className={`bg-${stat.color}-500 h-1.5 rounded-full transition-all duration-1000`} 
                          style={{ width: `${Math.min(Math.random() * 100, 100)}%` }}></div>
@@ -486,7 +446,7 @@ const Dashboard = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Cards de Recorrência Otimizados */}
+        {/* Cards de Recorrência */}
         {dashboardMetrics.activeSubscriptions > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
@@ -498,7 +458,6 @@ const Dashboard = ({ onNavigate }) => {
                 Total: {dashboardMetrics.activeSubscriptions} ativas
               </div>
             </div>
-            
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {Object.entries(recurrenceStats).map(([type, data]) => {
                 const typeLabels = {
@@ -507,9 +466,7 @@ const Dashboard = ({ onNavigate }) => {
                   monthly: { label: 'Mensais', icon: '📆', desc: 'Por mês' },
                   custom: { label: 'Personalizadas', icon: '⏱️', desc: 'Customizadas' }
                 };
-                
                 const typeInfo = typeLabels[type];
-                
                 return (
                   <div key={type} className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 group cursor-pointer">
                     <div className="flex items-center justify-between mb-4">
@@ -525,17 +482,13 @@ const Dashboard = ({ onNavigate }) => {
                         </div>
                       </div>
                     </div>
-                    
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-700">{typeInfo.label}</span>
                       </div>
-                      
                       <div className="text-lg font-semibold text-gray-900">
                         {formatCurrency(data.revenue)}
                       </div>
-                      
-                      {/* Progress Bar */}
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className={`h-2 rounded-full transition-all duration-1000 ${data.color}`}
@@ -550,7 +503,7 @@ const Dashboard = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Widget WhatsApp Melhorado */}
+        {/* Widget WhatsApp */}
         {(clients.length > 0 && invoices.length > 0) && (
           <div className="mb-8">
             <WhatsAppQuickActions 
@@ -569,7 +522,6 @@ const Dashboard = ({ onNavigate }) => {
               <span className="text-2xl">🕐</span>
               Atividade Recente
             </h3>
-            
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
               <div className="divide-y divide-gray-100">
                 {dashboardMetrics.recentActivity.map((activity, index) => (
@@ -579,14 +531,13 @@ const Dashboard = ({ onNavigate }) => {
                         activity.type === 'invoice' 
                           ? activity.status === 'pago'
                             ? 'bg-green-100 text-green-600' 
-                            : activity.status === 'overdue'
+                            : activity.status === 'vencida'
                             ? 'bg-red-100 text-red-600'
                             : 'bg-blue-100 text-blue-600'
                           : 'bg-green-100 text-green-600'
                       }`}>
                         {activity.type === 'invoice' ? '📄' : '👤'}
                       </div>
-                      
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">
                           {activity.message}
@@ -595,19 +546,18 @@ const Dashboard = ({ onNavigate }) => {
                           {activity.time ? new Date(activity.time).toLocaleString('pt-BR') : 'Data não disponível'}
                         </p>
                       </div>
-                      
                       <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                         activity.status === 'pago' 
                           ? 'bg-green-100 text-green-700'
-                          : activity.status === 'atrasada'
+                          : activity.status === 'vencida'
                           ? 'bg-red-100 text-red-700'
                           : activity.status === 'pendente'
                           ? 'bg-yellow-100 text-yellow-700'
                           : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {activity.status === 'paid' ? 'Pago' : 
-                         activity.status === 'overdue' ? 'Vencida' : 
-                         activity.status === 'pending' ? 'Pendente' : 
+                        {activity.status === 'pago' ? 'Pago' : 
+                         activity.status === 'vencida' ? 'Vencida' : 
+                         activity.status === 'pendente' ? 'Pendente' : 
                          'Ativo'}
                       </div>
                     </div>
@@ -617,97 +567,14 @@ const Dashboard = ({ onNavigate }) => {
             </div>
           </div>
         )}
-        
+
         {/* Tabela de Faturas */}
         <InvoiceTable invoices={dashboardMetrics.correctedInvoices} clients={clients} />
 
-        {/* Sistema de Automação Status */}
-        {subscriptions.length > 0 && (
-          <div className="mt-8">
-            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-2xl border border-orange-200 overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <span className="text-2xl">🤖</span>
-                    Sistema de Automação
-                  </h3>
-                  <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    Operacional
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                      <span>⚙️</span>
-                      Funcionalidades Ativas
-                    </h4>
-                    <div className="space-y-3">
-                      {[
-                        'Geração automática de faturas recorrentes',
-                        'Cálculo inteligente de próximas cobranças',
-                        'Integração com WhatsApp para notificações',
-                        'Controle de status e vencimentos'
-                      ].map((feature, index) => (
-                        <div key={index} className="flex items-center gap-3 text-sm text-gray-700">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          {feature}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                      <span>📈</span>
-                      Próximas Ações
-                    </h4>
-                    <div className="space-y-3">
-                      {[
-                        'Clique em "Gerar Faturas" para processar recorrências',
-                        'Use o WhatsApp Widget para enviar cobranças',
-                        'Acompanhe o status das faturas na tabela',
-                        'Monitore KPIs em tempo real no dashboard'
-                      ].map((action, index) => (
-                        <div key={index} className="flex items-start gap-3 text-sm text-gray-700">
-                          <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center text-xs font-bold text-orange-600 mt-0.5 flex-shrink-0">
-                            {index + 1}
-                          </div>
-                          {action}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Status Footer */}
-                <div className="mt-8 pt-6 border-t border-orange-200">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-2 text-green-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        Sistema operacional
-                      </div>
-                      <div className="text-gray-500">
-                        Uptime: 99.9%
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Última atualização: {currentTime.toLocaleString('pt-BR')}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Estado Vazio Melhorado */}
+        {/* Estado Vazio */}
         {clients.length === 0 && subscriptions.length === 0 && invoices.length === 0 && (
           <div className="text-center py-16 bg-white rounded-2xl shadow-lg border border-gray-100">
             <div className="max-w-md mx-auto">
-              {/* Animação de ícones */}
               <div className="mb-8 relative">
                 <div className="text-8xl mb-4 animate-bounce">📊</div>
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-4">
@@ -718,7 +585,6 @@ const Dashboard = ({ onNavigate }) => {
                   </div>
                 </div>
               </div>
-              
               <h3 className="text-2xl font-bold text-gray-900 mb-4">
                 Bem-vindo ao Sistema de Cobranças
               </h3>
@@ -726,8 +592,6 @@ const Dashboard = ({ onNavigate }) => {
                 Para começar, clique no botão abaixo para criar clientes, assinaturas 
                 e faturas de exemplo com diferentes tipos de recorrência.
               </p>
-              
-              {/* Features Preview */}
               <div className="grid grid-cols-2 gap-4 mb-8 text-sm">
                 <div className="flex items-center gap-2 text-gray-600">
                   <span className="text-green-500">✓</span>
@@ -746,7 +610,6 @@ const Dashboard = ({ onNavigate }) => {
                   Relatórios avançados
                 </div>
               </div>
-              
               <button 
                 onClick={handleCreateExampleData}
                 disabled={quickActions.createExample}
@@ -766,40 +629,50 @@ const Dashboard = ({ onNavigate }) => {
                   </div>
                 )}
               </button>
-              
               <p className="text-xs text-gray-500 mt-4">
                 🚀 Explore todas as funcionalidades sem compromisso
               </p>
             </div>
           </div>
         )}
-      </div>
 
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes fade-in-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
+        {/* CSS Animations */}
+        <style jsx>{`
+          @keyframes fade-in-up {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
           }
-          to {
-            opacity: 1;
-            transform: translateY(0);
+          .animate-fade-in-up {
+            animation: fade-in-up 0.6s ease-out forwards;
           }
-        }
-        
-        .animate-fade-in-up {
-          animation: fade-in-up 0.6s ease-out forwards;
-        }
-        
-        .animation-delay-200 {
-          animation-delay: 0.2s;
-        }
-        
-        .animation-delay-400 {
-          animation-delay: 0.4s;
-        }
-      `}</style>
+          .animation-delay-200 {
+            animation-delay: 0.2s;
+          }
+          .animation-delay-400 {
+            animation-delay: 0.4s;
+          }
+          .btn-success {
+            background-color: #22c55e;
+            color: white;
+          }
+          .btn-success:hover:not(:disabled) {
+            background-color: #16a34a;
+          }
+          .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+          }
+          .btn-primary:hover:not(:disabled) {
+            background-color: #2563eb;
+          }
+        `}</style>
+      </div>
     </div>
   );
 };

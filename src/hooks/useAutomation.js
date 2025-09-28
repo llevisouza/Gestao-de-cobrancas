@@ -1,123 +1,108 @@
 // src/hooks/useAutomation.js
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 
-const API_BASE = 'http://localhost:3001/api/automation'; // Ajuste para URL da VM em produção, ex.: 'https://gestaodecobrancas.ddns.net:3001/api/automation'
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
 
 export const useAutomation = () => {
   const [isRunning, setIsRunning] = useState(false);
-  const [config, setConfig] = useState(null);
-  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState({ connected: false, details: {} });
 
+  // Configurar axios com base URL e timeout
+  const api = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 10000, // 10 segundos de timeout
+  });
+
+  // Função pra buscar status
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`${API_BASE}/status`);
-      const data = await response.json();
-      if (data.success) {
-        setIsRunning(data.running);
-        setConfig(data.config);
-        setStats(data.stats);
-      }
+      const response = await api.get('/automation/health');
+      const health = response.data.health || {};
+      setIsRunning(health.automationRunning || false);
+      setStatus(health);
+      return health;
     } catch (error) {
       console.error('Erro ao buscar status:', error);
+      return { connected: false, details: { error: error.message } };
     }
   };
 
+  // Iniciar automação
   const startAutomation = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/start`, { method: 'POST' });
-      const data = await response.json();
-      fetchStatus(); // Atualiza o status após a ação
-      return data;
+      const response = await api.post('/automation/start');
+      if (response.data.success) {
+        setIsRunning(true);
+      }
+      return response.data;
     } catch (error) {
+      console.error('Erro ao iniciar automação:', error);
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Parar automação
   const stopAutomation = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/stop`, { method: 'POST' });
-      const data = await response.json();
-      fetchStatus();
-      return data;
+      const response = await api.post('/automation/stop');
+      if (response.data.success) {
+        setIsRunning(false);
+      }
+      return response.data;
     } catch (error) {
+      console.error('Erro ao parar automação:', error);
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Executar ciclo manual
   const runManualCycle = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/run-cycle`, { method: 'POST' });
-      const data = await response.json();
-      fetchStatus();
-      return data;
+      const response = await api.post('/automation/run-cycle');
+      return response.data;
     } catch (error) {
+      console.error('Erro no ciclo manual:', error);
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
-  const reset = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/reset`, { method: 'POST' });
-      const data = await response.json();
-      fetchStatus();
-      return data;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
-
-  const getLogs = async (limit = 50) => {
-    try {
-      const response = await fetch(`${API_BASE}/logs?limit=${limit}`);
-      const data = await response.json();
-      return data.logs || [];
-    } catch (error) {
-      console.error('Erro ao buscar logs:', error);
-      return [];
-    }
-  };
-
+  // Testar conexões
   const testConnections = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/health`);
-      const data = await response.json();
-      return data.health;
+      const response = await api.get('/automation/health');
+      return response.data.health;
     } catch (error) {
+      console.error('Erro ao testar conexões:', error);
       return { error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateConfig = async (newConfig) => {
-    try {
-      const response = await fetch(`${API_BASE}/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: newConfig }),
-      });
-      const data = await response.json();
-      fetchStatus();
-      return data;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // Obter status
+  const getStatus = async () => {
+    return await fetchStatus();
   };
 
+  // Efeito inicial pra carregar o status
   useEffect(() => {
-    fetchStatus(); // Carrega status inicial
-    const interval = setInterval(fetchStatus, 30000); // Atualiza a cada 30s
+    fetchStatus();
+    // Opcional: Atualizar status a cada 30 segundos
+    const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  return {
-    isRunning,
-    config,
-    stats,
-    startAutomation,
-    stopAutomation,
-    runManualCycle,
-    reset,
-    getLogs,
-    testConnections,
-    updateConfig,
-  };
+  return { isRunning, loading, startAutomation, stopAutomation, runManualCycle, testConnections, getStatus, status };
 };

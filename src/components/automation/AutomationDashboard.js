@@ -1,139 +1,153 @@
 // src/components/automation/AutomationDashboard.js
-import React, { useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useAutomation } from '../../hooks/useAutomation';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 const AutomationDashboard = () => {
-  const {
-    isRunning,
-    startAutomation,
-    stopAutomation,
-    runManualCycle,
-    reset,
-    getLogs,
+  const { 
+    isRunning, 
+    loading, 
+    startAutomation, 
+    stopAutomation, 
+    runManualCycle, 
     testConnections,
-    config,
-    updateConfig,
-    stats,
+    getStatus
   } = useAutomation();
 
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState({ connected: false, details: {} });
 
-  const handleStart = async () => {
-    setLoading(true);
-    const result = await startAutomation();
-    if (result.success) {
-      alert('Automação iniciada!');
-    } else {
-      alert(`Erro: ${result.error}`);
-    }
-    setLoading(false);
+  useEffect(() => {
+    const fetchStatus = async () => {
+      const currentStatus = await getStatus();
+      setStatus(currentStatus);
+    };
+    fetchStatus();
+  }, [getStatus]);
+
+  const showNotification = (type, title, message) => {
+    const icons = {
+      success: '✅',
+      error: '❌',
+      warning: '⚠️',
+      info: 'ℹ️'
+    };
+    alert(`${icons[type]} ${title}\n${message}`);
   };
 
-  const handleStop = async () => {
-    setLoading(true);
-    const result = await stopAutomation();
-    if (result.success) {
-      alert('Automação parada!');
-    } else {
-      alert(`Erro: ${result.error}`);
-    }
-    setLoading(false);
-  };
-
-  const handleManualCycle = async () => {
-    setLoading(true);
-    const result = await runManualCycle();
-    if (result.success) {
-      alert('Ciclo manual executado!');
-    } else {
-      alert(`Erro: ${result.error}`);
-    }
-    setLoading(false);
-    await refreshLogs();
-  };
-
-  const handleReset = async () => {
-    if (window.confirm('Tem certeza? Isso resetará a automação.')) {
-      setLoading(true);
-      const result = await reset();
+  const handleStart = useCallback(async () => {
+    try {
+      const result = await startAutomation();
       if (result.success) {
-        alert('Reset concluído!');
+        showNotification('success', 'Automação Iniciada', 'O sistema de automação foi ativado!');
+        setStatus(await getStatus());
       } else {
-        alert(`Erro: ${result.error}`);
+        showNotification('error', 'Erro ao Iniciar', result.error);
       }
-      setLoading(false);
+    } catch (error) {
+      showNotification('error', 'Erro ao Iniciar', error.message);
     }
-  };
+  }, [startAutomation, getStatus]);
 
-  const handleTestConnections = async () => {
-    const health = await testConnections();
-    alert(`Database: ${health.database ? 'OK' : 'Erro'}\nWhatsApp: ${health.whatsapp.connected ? 'OK' : 'Erro'}\nBusiness Hours: ${health.businessHours ? 'OK' : 'Fora do horário'}`);
-  };
+  const handleStop = useCallback(async () => {
+    try {
+      const result = await stopAutomation();
+      if (result.success) {
+        showNotification('success', 'Automação Parada', 'O sistema de automação foi desativado.');
+        setStatus(await getStatus());
+      } else {
+        showNotification('error', 'Erro ao Parar', result.error);
+      }
+    } catch (error) {
+      showNotification('error', 'Erro ao Parar', error.message);
+    }
+  }, [stopAutomation, getStatus]);
 
-  const refreshLogs = async () => {
-    const newLogs = await getLogs();
-    setLogs(newLogs);
-  };
+  const handleRunManualCycle = useCallback(async () => {
+    try {
+      const result = await runManualCycle();
+      if (result.success) {
+        showNotification('success', 'Ciclo Manual Executado', 'As mensagens foram enviadas com sucesso!');
+      } else {
+        showNotification('error', 'Erro no Ciclo Manual', result.error);
+      }
+    } catch (error) {
+      showNotification('error', 'Erro no Ciclo Manual', error.message);
+    }
+  }, [runManualCycle]);
+
+  const handleTestConnections = useCallback(async () => {
+    try {
+      const health = await testConnections();
+      if (health.error) {
+        showNotification('error', 'Erro na Conexão', health.error);
+      } else {
+        showNotification('success', 'Teste de Conexão', 
+          `Banco de dados: ${health.database ? '✅ OK' : '❌ Falhou'}\nWhatsApp: ${health.whatsapp.connected ? '✅ Conectado' : '❌ Desconectado'}`);
+        setStatus(health);
+      }
+    } catch (error) {
+      showNotification('error', 'Erro no Teste', error.message);
+    }
+  }, [testConnections]);
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-4">Dashboard de Automação WhatsApp</h2>
-      
-      {/* Status */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="p-4 bg-blue-100 rounded">
-          <h3>Status</h3>
-          <p className={isRunning ? 'text-green-600' : 'text-red-600'}>
+    <div className="p-6">
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Controle de Automação</h2>
+        <div className="flex flex-wrap gap-4 items-center mb-4">
+          <button
+            onClick={handleStart}
+            disabled={isRunning || loading}
+            className="btn-success px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Iniciar o sistema de automação"
+          >
+            {loading && !isRunning ? <LoadingSpinner size="small" /> : <span>▶️</span>}
+            Ligar Automação
+          </button>
+          <button
+            onClick={handleStop}
+            disabled={!isRunning || loading}
+            className="btn-danger px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Parar o sistema de automação"
+          >
+            {loading && isRunning ? <LoadingSpinner size="small" /> : <span>⏹️</span>}
+            Desligar Automação
+          </button>
+          <button
+            onClick={handleRunManualCycle}
+            disabled={loading}
+            className="btn-primary px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Executar um ciclo manual de envio"
+          >
+            {loading ? <LoadingSpinner size="small" /> : <span>🔄</span>}
+            Ciclo Manual
+          </button>
+          <button
+            onClick={handleTestConnections}
+            disabled={loading}
+            className="btn-warning px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Testar a conexão com o WhatsApp e o banco de dados"
+          >
+            {loading ? <LoadingSpinner size="small" /> : <span>🔍</span>}
+            Testar Conexão
+          </button>
+        </div>
+        <div className="mt-4 text-sm text-gray-600">
+          Status: 
+          <span className={`font-medium ml-2 ${isRunning ? 'text-green-600' : 'text-red-600'}`}>
             {isRunning ? '🟢 Ativo' : '🔴 Parado'}
-          </p>
+          </span>
+          {status.whatsapp && (
+            <span className="ml-4">
+              WhatsApp: {status.whatsapp.connected ? '✅ Conectado' : '❌ Desconectado'}
+            </span>
+          )}
+          {status.database !== undefined && (
+            <span className="ml-4">
+              Banco: {status.database ? '✅ Conectado' : '❌ Desconectado'}
+            </span>
+          )}
         </div>
-        <div className="p-4 bg-green-100 rounded">
-          <h3>Mensagens Enviadas</h3>
-          <p>{stats?.messagesSent || 0}</p>
-        </div>
-        <div className="p-4 bg-red-100 rounded">
-          <h3>Erros</h3>
-          <p>{stats?.errors || 0}</p>
-        </div>
-        <div className="p-4 bg-yellow-100 rounded">
-          <h3>Última Execução</h3>
-          <p>{stats?.lastRun ? new Date(stats.lastRun).toLocaleString() : 'N/A'}</p>
-        </div>
-      </div>
-
-      {/* Botões */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <button onClick={handleStart} disabled={isRunning || loading} className="p-2 bg-green-500 text-white rounded disabled:opacity-50">
-          Iniciar Automação
-        </button>
-        <button onClick={handleStop} disabled={!isRunning || loading} className="p-2 bg-red-500 text-white rounded disabled:opacity-50">
-          Parar Automação
-        </button>
-        <button onClick={handleManualCycle} disabled={loading} className="p-2 bg-blue-500 text-white rounded disabled:opacity-50">
-          Ciclo Manual
-        </button>
-        <button onClick={handleReset} disabled={loading} className="p-2 bg-yellow-500 text-white rounded disabled:opacity-50">
-          Reset Automação
-        </button>
-      </div>
-
-      {/* Teste e Logs */}
-      <button onClick={handleTestConnections} className="p-2 bg-purple-500 text-white rounded mb-4">
-        Testar Conexões
-      </button>
-      <button onClick={refreshLogs} className="p-2 bg-gray-500 text-white rounded mb-4">
-        Atualizar Logs
-      </button>
-      <div>
-        <h3>Logs Recentes</h3>
-        <ul className="max-h-40 overflow-y-auto">
-          {logs.map((log, index) => (
-            <li key={index}>
-              [{new Date(log.timestamp).toLocaleString()}] {log.action}: {log.data?.message}
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   );

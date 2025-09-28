@@ -1,3 +1,4 @@
+
 // server.js - SERVIDOR PRINCIPAL REFATORADO COM ENDPOINTS DE MESSAGING
 const express = require('express');
 const cors = require('cors');
@@ -754,7 +755,7 @@ app.listen(port, async () => {
   console.log('🚀 ======================================');
 
   // Iniciar auto-start da automação
-  autoStartAutomation();
+  ```autoStartAutomation();```
 });
 
 module.exports = app;

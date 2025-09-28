@@ -140,7 +140,7 @@ function App() {
             subscriptions={subscriptions}
             onNavigate={setCurrentView}
           >
-            <AutomationDashboard /> {/* Integração do controle dentro do WhatsApp Manager */}
+            <AutomationDashboard />
           </UnifiedWhatsAppManager>
         )}
 

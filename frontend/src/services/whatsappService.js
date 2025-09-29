@@ -1,624 +1,14 @@
-// src/services/whatsappService.js - VERSÃO CORRIGIDA PARA PRODUCTION
+// src/services/whatsappService.js - SERVIÇO COMPLETO COM TEMPLATES
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 class WhatsAppService {
   constructor() {
-    // Configuração da Evolution API
-    this.baseURL = process.env.REACT_APP_WHATSAPP_API_URL || 'https://gestaodecobrancas.ddns.net';
-    this.apiKey = process.env.REACT_APP_WHATSAPP_API_KEY || '429683C4C977415CAAFCCE10F7D57E11';
-    this.instanceName = process.env.REACT_APP_WHATSAPP_INSTANCE || 'main';
+    this.apiUrl = process.env.REACT_APP_WHATSAPP_API_URL;
+    this.apiKey = process.env.REACT_APP_WHATSAPP_API_KEY;
+    this.instanceName = process.env.REACT_APP_WHATSAPP_INSTANCE;
     
-    // URL do servidor de automação (sua VM)
-    this.automationServerURL = process.env.REACT_APP_AUTOMATION_SERVER_URL || 'http://localhost:3001';
-
-    // Informações da empresa (carregadas do localStorage)
-    this.companyInfo = this.loadCompanyInfo();
-
-    console.log('🔧 WhatsApp Service inicializado:');
-    console.log(`   Evolution API: ${this.baseURL}`);
-    console.log(`   Instance: ${this.instanceName}`);
-    console.log(`   Automation Server: ${this.automationServerURL}`);
-  }
-
-  // =============================================
-  // CONEXÃO E STATUS
-  // =============================================
-
-  // Verificar status da conexão diretamente na Evolution API
-  async checkConnection() {
-    try {
-      console.log('🔍 Verificando conexão WhatsApp...');
-      
-      const response = await fetch(
-        `${this.baseURL}/instance/connectionState/${this.instanceName}`, 
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': this.apiKey
-          },
-          timeout: 10000
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const isConnected = data.instance?.state === 'open';
-      
-      console.log(`📱 WhatsApp Status: ${isConnected ? 'Conectado' : 'Desconectado'}`);
-      
-      return {
-        connected: isConnected,
-        state: data.instance?.state || 'unknown',
-        instanceName: this.instanceName,
-        lastUpdated: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('❌ Erro ao verificar conexão:', error);
-      return {
-        connected: false,
-        state: 'error',
-        error: error.message,
-        instanceName: this.instanceName
-      };
-    }
-  }
-
-  // Obter QR Code para conexão
-  async getQRCode() {
-    try {
-      console.log('📱 Gerando QR Code...');
-      
-      const response = await fetch(
-        `${this.baseURL}/instance/connect/${this.instanceName}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': this.apiKey
-          }
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
-      }
-
-      let qrCode = data.base64 || data.qrcode?.base64;
-      
-      // Garantir formato base64 correto
-      if (qrCode && !qrCode.startsWith('data:')) {
-        qrCode = `data:image/png;base64,${qrCode}`;
-      }
-
-      return {
-        success: true,
-        qrCode: qrCode,
-        pairingCode: data.pairingCode || data.code
-      };
-    } catch (error) {
-      console.error('❌ Erro ao obter QR Code:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  // Testar conexão com envio opcional
-  async testConnection(testPhone = null) {
-    try {
-      console.log('🧪 Testando conexão...');
-      
-      // Primeiro verificar status
-      const connectionStatus = await this.checkConnection();
-      
-      if (!connectionStatus.connected) {
-        return {
-          connection: connectionStatus,
-          testResult: null
-        };
-      }
-
-      // Se tem telefone, enviar mensagem de teste
-      let testResult = null;
-      if (testPhone) {
-        const cleanPhone = this.formatPhoneNumber(testPhone);
-        const message = `🧪 *TESTE DE CONEXÃO*\n\nSua API WhatsApp está funcionando perfeitamente!\n\n✅ Sistema: ${this.companyInfo.name}\n📱 Integração: Evolution API\n🕐 ${new Date().toLocaleString('pt-BR')}`;
-        
-        testResult = await this.sendMessage(cleanPhone, message);
-      }
-
-      return {
-        connection: connectionStatus,
-        testResult
-      };
-    } catch (error) {
-      console.error('❌ Erro no teste:', error);
-      return {
-        connection: { connected: false, error: error.message },
-        testResult: { success: false, error: error.message }
-      };
-    }
-  }
-
-  // =============================================
-  // ENVIO DE MENSAGENS
-  // =============================================
-
-  // Método base para enviar mensagem
-  async sendMessage(phone, message) {
-    try {
-      const cleanPhone = this.formatPhoneNumber(phone);
-      
-      if (!cleanPhone) {
-        throw new Error('Número de telefone inválido');
-      }
-
-      console.log(`📤 Enviando mensagem para ${cleanPhone}...`);
-      
-      const response = await fetch(
-        `${this.baseURL}/message/sendText/${this.instanceName}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': this.apiKey
-          },
-          body: JSON.stringify({
-            number: cleanPhone,
-            textMessage: {
-              text: message
-            }
-          })
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || data.message || `HTTP ${response.status}`);
-      }
-
-      console.log(`✅ Mensagem enviada com sucesso para ${cleanPhone}`);
-      
-      return {
-        success: true,
-        messageId: data.key?.id || data.messageId,
-        response: data
-      };
-    } catch (error) {
-      console.error(`❌ Erro ao enviar mensagem para ${phone}:`, error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  // =============================================
-  // NOTIFICAÇÕES DE COBRANÇA
-  // =============================================
-
-  // Fatura vencida
-  async sendOverdueNotification(invoice, client, subscription = null) {
-    const message = this.getOverdueTemplate(invoice, client, subscription);
-    return await this.sendMessage(client.phone, message);
-  }
-
-  // Lembrete de vencimento
-  async sendReminderNotification(invoice, client, subscription = null) {
-    const message = this.getReminderTemplate(invoice, client, subscription);
-    return await this.sendMessage(client.phone, message);
-  }
-
-  // Nova fatura
-  async sendNewInvoiceNotification(invoice, client, subscription = null) {
-    const message = this.getNewInvoiceTemplate(invoice, client, subscription);
-    return await this.sendMessage(client.phone, message);
-  }
-
-  // Confirmação de pagamento
-  async sendPaymentConfirmation(invoice, client, subscription = null) {
-    const message = this.getPaymentTemplate(invoice, client, subscription);
-    return await this.sendMessage(client.phone, message);
-  }
-
-  // =============================================
-  // AUTOMAÇÃO SERVER (BACKEND)
-  // =============================================
-
-  // Iniciar automação no servidor
-  async startAutomation() {
-    try {
-      console.log('🚀 Iniciando automação no servidor...');
-      
-      const response = await fetch(`${this.automationServerURL}/automation/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        console.log('✅ Automação iniciada no servidor');
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('❌ Erro ao iniciar automação:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  // Parar automação no servidor
-  async stopAutomation() {
-    try {
-      console.log('🛑 Parando automação no servidor...');
-      
-      const response = await fetch(`${this.automationServerURL}/automation/stop`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        console.log('✅ Automação parada no servidor');
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('❌ Erro ao parar automação:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  // Verificar status da automação
-  async getAutomationStatus() {
-    try {
-      const response = await fetch(`${this.automationServerURL}/automation/status`);
-      const status = await response.json();
-      
-      return {
-        success: true,
-        ...status
-      };
-    } catch (error) {
-      console.error('❌ Erro ao verificar status da automação:', error);
-      return {
-        success: false,
-        isRunning: false,
-        error: error.message
-      };
-    }
-  }
-
-  // Executar ciclo manual
-  async runManualCycle() {
-    try {
-      console.log('🔄 Executando ciclo manual...');
-      
-      const response = await fetch(`${this.automationServerURL}/automation/run-cycle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        console.log('✅ Ciclo manual executado');
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('❌ Erro no ciclo manual:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  // =============================================
-  // ENVIO EM LOTE
-  // =============================================
-
-  // Enviar mensagens em lote
-  async sendBulkMessages(notifications, delayMs = 3000) {
-    try {
-      console.log(`🔄 Iniciando envio em lote de ${notifications.length} mensagens...`);
-      
-      const results = [];
-      let successful = 0;
-      let failed = 0;
-
-      for (let i = 0; i < notifications.length; i++) {
-        const notification = notifications[i];
-        const { type, invoice, client, subscription } = notification;
-        
-        console.log(`📤 Enviando ${i + 1}/${notifications.length}: ${type} para ${client.name}`);
-        
-        try {
-          let result;
-          
-          switch (type) {
-            case 'overdue':
-              result = await this.sendOverdueNotification(invoice, client, subscription);
-              break;
-            case 'reminder':
-              result = await this.sendReminderNotification(invoice, client, subscription);
-              break;
-            case 'new_invoice':
-              result = await this.sendNewInvoiceNotification(invoice, client, subscription);
-              break;
-            case 'payment_confirmation':
-              result = await this.sendPaymentConfirmation(invoice, client, subscription);
-              break;
-            default:
-              throw new Error(`Tipo de notificação inválido: ${type}`);
-          }
-          
-          results.push({
-            client: client.name,
-            phone: client.phone,
-            type,
-            amount: invoice.amount,
-            ...result
-          });
-          
-          if (result.success) {
-            successful++;
-          } else {
-            failed++;
-          }
-          
-        } catch (error) {
-          console.error(`❌ Erro ao enviar para ${client.name}:`, error);
-          results.push({
-            client: client.name,
-            phone: client.phone,
-            type,
-            amount: invoice.amount,
-            success: false,
-            error: error.message
-          });
-          failed++;
-        }
-        
-        // Delay entre mensagens (exceto na última)
-        if (i < notifications.length - 1) {
-          console.log(`⏳ Aguardando ${delayMs}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      }
-
-      console.log(`✅ Envio em lote concluído: ${successful} sucessos, ${failed} falhas`);
-      
-      return {
-        success: true,
-        results,
-        summary: {
-          total: results.length,
-          successful,
-          failed,
-          successRate: results.length > 0 ? Math.round((successful / results.length) * 100) : 0
-        }
-      };
-    } catch (error) {
-      console.error('❌ Erro no envio em lote:', error);
-      throw error;
-    }
-  }
-
-  // =============================================
-  // TEMPLATES DE MENSAGEM
-  // =============================================
-
-  getOverdueTemplate(invoice, client, subscription = null) {
-    const daysOverdue = this.calculateDaysOverdue(invoice.dueDate);
-    
-    let message = `🚨 *FATURA VENCIDA* 🚨
-
-Olá *${client.name}*! 👋
-
-Sua fatura está *${daysOverdue} dias em atraso* e precisa ser regularizada.
-
-💰 *RESUMO DA COBRANÇA*
-💵 Valor: *${formatCurrency(invoice.amount)}*
-📅 Vencimento: ${formatDate(invoice.dueDate)}
-⚠️ Dias em atraso: *${daysOverdue} dias*
-🆔 Código: #${invoice.id?.substring(0, 8)}`;
-
-    if (subscription) {
-      message += `\n🔄 *PLANO: ${subscription.name}*`;
-    }
-
-    message += `\n\n💳 *PAGUE AGORA VIA PIX*
-🔑 Chave PIX: *${this.companyInfo.pixKey}*
-
-📞 ${this.companyInfo.name} - ${this.companyInfo.phone}`;
-
-    return message;
-  }
-
-  getReminderTemplate(invoice, client, subscription = null) {
-    const daysUntil = this.calculateDaysUntil(invoice.dueDate);
-    
-    let message = `🔔 *LEMBRETE DE PAGAMENTO* 🔔
-
-Oi *${client.name}*! 😊
-
-Sua fatura vence em *${daysUntil}*. Que tal já garantir o pagamento?
-
-💰 *DETALHES DO PAGAMENTO*
-💵 Valor: *${formatCurrency(invoice.amount)}*
-📅 Vencimento: ${formatDate(invoice.dueDate)}
-⏰ Faltam: *${daysUntil}*
-🆔 Código: #${invoice.id?.substring(0, 8)}`;
-
-    if (subscription) {
-      message += `\n🔄 *PLANO: ${subscription.name}*`;
-    }
-
-    message += `\n\n💳 *PIX PARA PAGAMENTO*
-🔑 Chave PIX: *${this.companyInfo.pixKey}*
-
-📞 ${this.companyInfo.name} - ${this.companyInfo.phone}`;
-
-    return message;
-  }
-
-  getNewInvoiceTemplate(invoice, client, subscription = null) {
-    let message = `📄 *NOVA FATURA DISPONÍVEL* 📄
-
-Olá *${client.name}*! 👋
-
-Uma nova fatura foi gerada para você!
-
-💰 *INFORMAÇÕES DA FATURA*
-💵 Valor: *${formatCurrency(invoice.amount)}*
-📅 Vencimento: ${formatDate(invoice.dueDate)}
-📋 Gerada em: ${formatDate(invoice.generationDate || new Date())}
-🆔 Código: #${invoice.id?.substring(0, 8)}`;
-
-    if (subscription) {
-      message += `\n🔄 *SEU PLANO: ${subscription.name}*\nAtivo e em funcionamento ✅`;
-    }
-
-    message += `\n\n💳 *PAGAMENTO VIA PIX*
-🔑 Chave PIX: *${this.companyInfo.pixKey}*
-
-📞 ${this.companyInfo.name} - ${this.companyInfo.phone}`;
-
-    return message;
-  }
-
-  getPaymentTemplate(invoice, client, subscription = null) {
-    let message = `✅ *PAGAMENTO CONFIRMADO* ✅
-
-*${client.name}*, seu pagamento foi confirmado! 🎉
-
-💰 *COMPROVANTE DE PAGAMENTO*
-✅ Status: *PAGO*
-💵 Valor: ${formatCurrency(invoice.amount)}
-📅 Pago em: ${formatDate(invoice.paidDate || new Date())}
-🆔 Código: #${invoice.id?.substring(0, 8)}`;
-
-    if (subscription) {
-      message += `\n\n🔄 *PLANO RENOVADO: ${subscription.name}*
-Válido até a próxima cobrança
-Status: Ativo e funcionando ✅`;
-    }
-
-    message += `\n\n🎯 *PRÓXIMOS PASSOS:*
-• ✅ Pagamento processado
-• 📱 Comprovante salvo
-• 🔄 Próxima fatura em breve
-• 🏆 Obrigado pela preferência!
-
-📞 ${this.companyInfo.name} - ${this.companyInfo.phone}`;
-
-    return message;
-  }
-
-  // =============================================
-  // HISTÓRICO E ESTATÍSTICAS
-  // =============================================
-
-  // Obter histórico de mensagens de um cliente
-  async getMessageHistory(clientId, limit = 10) {
-    try {
-      // Implementar busca no Firestore ou logs locais
-      // Por enquanto, retorna array vazio
-      return [];
-    } catch (error) {
-      console.error('❌ Erro ao obter histórico:', error);
-      return [];
-    }
-  }
-
-  // Verificar se mensagem foi enviada hoje
-  async wasMessageSentToday(clientId, type) {
-    try {
-      // Implementar verificação no Firestore
-      // Por enquanto, sempre retorna false
-      return false;
-    } catch (error) {
-      console.error('❌ Erro ao verificar mensagem do dia:', error);
-      return false;
-    }
-  }
-
-  // Obter estatísticas de mensagens
-  async getMessagingStats(days = 30) {
-    try {
-      // Por enquanto, retorna dados mock
-      return {
-        total: 0,
-        successful: 0,
-        failed: 0,
-        successRate: 0,
-        period: `${days} dias`
-      };
-    } catch (error) {
-      console.error('❌ Erro ao obter estatísticas:', error);
-      return {
-        total: 0,
-        successful: 0,
-        failed: 0,
-        successRate: 0,
-        period: `${days} dias`
-      };
-    }
-  }
-
-  // =============================================
-  // CONFIGURAÇÕES DA EMPRESA
-  // =============================================
-
-  updateCompanyInfo(newInfo) {
-    this.companyInfo = { ...this.companyInfo, ...newInfo };
-    console.log('✅ Informações da empresa atualizadas');
-    
-    try {
-      localStorage.setItem('whatsapp_company_info', JSON.stringify(this.companyInfo));
-      return { success: true };
-    } catch (error) {
-      console.error('❌ Erro ao salvar informações:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  loadCompanyInfo() {
-    try {
-      const saved = localStorage.getItem('whatsapp_company_info');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar informações da empresa:', error);
-    }
-    
-    // Retorna configurações padrão
-    return {
+    // Configurações da empresa (padrão)
+    this.companyInfo = {
       name: 'Conexão Delivery',
       phone: '(11) 99999-9999',
       email: 'contato@conexaodelivery.com',
@@ -626,74 +16,417 @@ Status: Ativo e funcionando ✅`;
       website: 'www.conexaodelivery.com',
       supportHours: '8h às 18h, Segunda a Sexta'
     };
+
+    this.loadCompanyInfo();
   }
 
-  // =============================================
-  // FUNÇÕES UTILITÁRIAS
-  // =============================================
-
-  // Formatar número de telefone
-  formatPhoneNumber(phone) {
-    if (!phone) return '';
-
-    // Remove todos os caracteres não numéricos
-    let cleanPhone = phone.replace(/\D/g, '');
-
-    // Verifica se o número tem pelo menos 10 dígitos
-    if (cleanPhone.length < 10) {
-      console.warn(`⚠️ Número inválido: ${phone}`);
-      return '';
+  // ========================================
+  // CONFIGURAÇÕES DA EMPRESA
+  // ========================================
+  
+  loadCompanyInfo() {
+    const saved = localStorage.getItem('whatsapp_company_info');
+    if (saved) {
+      this.companyInfo = { ...this.companyInfo, ...JSON.parse(saved) };
     }
-
-    // Se não começar com 55 (Brasil), adiciona
-    if (!cleanPhone.startsWith('55')) {
-      // Se começar com 0, remove
-      if (cleanPhone.startsWith('0')) {
-        cleanPhone = cleanPhone.substring(1);
-      }
-      // Adiciona código do Brasil
-      cleanPhone = '55' + cleanPhone;
-    }
-
-    return cleanPhone;
   }
 
-  // Calcular dias em atraso
+  updateCompanyInfo(newInfo) {
+    this.companyInfo = { ...this.companyInfo, ...newInfo };
+    localStorage.setItem('whatsapp_company_info', JSON.stringify(this.companyInfo));
+  }
+
+  getCompanyInfo() {
+    return this.companyInfo;
+  }
+
+  // ========================================
+  // TEMPLATES DE MENSAGENS
+  // ========================================
+
+  /**
+   * Template para fatura vencida
+   */
+  getOverdueInvoiceTemplate(invoice, client, subscription = null) {
+    const clientPix = client.pix || this.companyInfo.pixKey;
+    const daysOverdue = this.calculateDaysOverdue(invoice.dueDate);
+    
+    return `🚨 *FATURA VENCIDA - ${this.companyInfo.name.toUpperCase()}*
+
+Olá *${client.name}*! 👋
+
+Sua fatura está vencida há *${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}*:
+
+📋 *DETALHES DA FATURA:*
+• Fatura: #${invoice.id}
+• Serviço: ${subscription ? subscription.name : invoice.subscriptionName || 'Serviço'}
+• Valor: *${formatCurrency(invoice.amount)}*
+• Vencimento: ${formatDate(invoice.dueDate)}
+
+💰 *FORMAS DE PAGAMENTO:*
+
+📱 *PIX (Mais rápido):*
+\`\`\`${clientPix}\`\`\`
+
+📞 *Dúvidas?* Entre em contato:
+• WhatsApp: ${this.companyInfo.phone}
+• E-mail: ${this.companyInfo.email}
+
+⏰ *Atendimento:* ${this.companyInfo.supportHours}
+
+---
+💡 *Dica:* Após o pagamento, envie o comprovante para confirmação imediata!
+
+*${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
+  }
+
+  /**
+   * Template para lembrete de vencimento
+   */
+  getReminderTemplate(invoice, client, subscription = null) {
+    const clientPix = client.pix || this.companyInfo.pixKey;
+    const daysUntilDue = this.calculateDaysUntilDue(invoice.dueDate);
+    
+    return `🔔 *LEMBRETE DE VENCIMENTO - ${this.companyInfo.name.toUpperCase()}*
+
+Olá *${client.name}*! 👋
+
+Sua fatura vence ${daysUntilDue === 0 ? '*hoje*' : `em *${daysUntilDue} dia${daysUntilDue > 1 ? 's' : ''}*`}:
+
+📋 *DETALHES DA FATURA:*
+• Fatura: #${invoice.id}
+• Serviço: ${subscription ? subscription.name : invoice.subscriptionName || 'Serviço'}
+• Valor: *${formatCurrency(invoice.amount)}*
+• Vencimento: ${formatDate(invoice.dueDate)}
+
+💰 *FORMAS DE PAGAMENTO:*
+
+📱 *PIX (Instantâneo):*
+\`\`\`${clientPix}\`\`\`
+
+${subscription && subscription.recurrenceType === 'monthly' ? `🔄 *Plano Ativo:* ${subscription.name} - Mensalidade que vence todo dia ${subscription.dayOfMonth}` : ''}
+
+📞 *Dúvidas?* Entre em contato:
+• WhatsApp: ${this.companyInfo.phone}
+• E-mail: ${this.companyInfo.email}
+
+⏰ *Atendimento:* ${this.companyInfo.supportHours}
+
+---
+💡 *Pague antecipadamente e evite preocupações!*
+
+*${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
+  }
+
+  /**
+   * Template para nova fatura gerada
+   */
+  getNewInvoiceTemplate(invoice, client, subscription = null) {
+    const clientPix = client.pix || this.companyInfo.pixKey;
+    
+    return `📄 *NOVA FATURA GERADA - ${this.companyInfo.name.toUpperCase()}*
+
+Olá *${client.name}*! 👋
+
+Uma nova fatura foi gerada para você:
+
+📋 *DETALHES DA FATURA:*
+• Fatura: #${invoice.id}
+• Serviço: ${subscription ? subscription.name : invoice.subscriptionName || 'Serviço'}
+• Valor: *${formatCurrency(invoice.amount)}*
+• Vencimento: ${formatDate(invoice.dueDate)}
+• Data geração: ${formatDate(invoice.generationDate || new Date().toISOString().split('T')[0])}
+
+${subscription ? `🔄 *Detalhes do Plano:*
+• Nome: ${subscription.name}
+• Recorrência: ${this.formatRecurrence(subscription)}
+• Status: ${subscription.status === 'active' ? '✅ Ativo' : '⏸️ Pausado'}` : ''}
+
+💰 *FORMAS DE PAGAMENTO:*
+
+📱 *PIX (Mais rápido):*
+\`\`\`${clientPix}\`\`\`
+
+📞 *Dúvidas?* Entre em contato:
+• WhatsApp: ${this.companyInfo.phone}
+• E-mail: ${this.companyInfo.email}
+
+⏰ *Atendimento:* ${this.companyInfo.supportHours}
+
+---
+💡 *Pague até a data de vencimento e mantenha seu serviço ativo!*
+
+*${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
+  }
+
+  /**
+   * Template para confirmação de pagamento
+   */
+  getPaymentConfirmedTemplate(invoice, client, subscription = null) {
+    return `✅ *PAGAMENTO CONFIRMADO - ${this.companyInfo.name.toUpperCase()}*
+
+Olá *${client.name}*! 👋
+
+Recebemos o pagamento da sua fatura! 🎉
+
+📋 *DETALHES DO PAGAMENTO:*
+• Fatura: #${invoice.id}
+• Serviço: ${subscription ? subscription.name : invoice.subscriptionName || 'Serviço'}
+• Valor: *${formatCurrency(invoice.amount)}*
+• Data pagamento: ${formatDate(invoice.paidDate || new Date().toISOString().split('T')[0])}
+
+${subscription ? `🔄 *Seu plano continua ativo!*
+• Próximo vencimento: ${this.calculateNextDueDate(subscription)}
+• Status: ✅ Ativo e funcionando` : ''}
+
+📧 *Comprovante:*
+O comprovante oficial será enviado para ${client.email}
+
+🎯 *Próximos passos:*
+• Seu serviço segue ativo normalmente
+• Próxima fatura será gerada automaticamente
+• Qualquer dúvida, estamos aqui!
+
+📞 *Suporte:*
+• WhatsApp: ${this.companyInfo.phone}
+• E-mail: ${this.companyInfo.email}
+
+⏰ *Atendimento:* ${this.companyInfo.supportHours}
+
+---
+🙏 *Obrigado por escolher a ${this.companyInfo.name}!*
+
+*${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
+  }
+
+  /**
+   * Template para fatura final (último aviso)
+   */
+  getFinalNoticeTemplate(invoice, client, subscription = null) {
+    const clientPix = client.pix || this.companyInfo.pixKey;
+    const daysOverdue = this.calculateDaysOverdue(invoice.dueDate);
+    
+    return `⚠️ *AVISO FINAL - ${this.companyInfo.name.toUpperCase()}*
+
+Olá *${client.name}*,
+
+Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
+
+🚨 *SITUAÇÃO ATUAL:*
+• Fatura: #${invoice.id}
+• Serviço: ${subscription ? subscription.name : invoice.subscriptionName || 'Serviço'}
+• Valor: *${formatCurrency(invoice.amount)}*
+• Vencimento: ${formatDate(invoice.dueDate)}
+• Dias em atraso: *${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}*
+
+⚠️ *AÇÕES NECESSÁRIAS:*
+• Pagamento imediato para evitar suspensão
+• Contato conosco para negociação (se necessário)
+
+💰 *PAGUE AGORA:*
+
+📱 *PIX:*
+\`\`\`${clientPix}\`\`\`
+
+📞 *URGENTE - Entre em contato:*
+• WhatsApp: ${this.companyInfo.phone}
+• E-mail: ${this.companyInfo.email}
+
+⏰ *Atendimento:* ${this.companyInfo.supportHours}
+
+---
+⚠️ *Sem o pagamento, seu serviço pode ser suspenso a qualquer momento.*
+
+*${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
+  }
+
+  // ========================================
+  // FUNÇÕES AUXILIARES
+  // ========================================
+
   calculateDaysOverdue(dueDate) {
     const today = new Date();
     const due = new Date(dueDate);
-    const diffTime = today.getTime() - due.getTime();
+    const diffTime = today - due;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 0;
   }
 
-  // Calcular dias até vencimento
-  calculateDaysUntil(dueDate) {
+  calculateDaysUntilDue(dueDate) {
     const today = new Date();
     const due = new Date(dueDate);
-    const diffTime = due.getTime() - today.getTime();
+    const diffTime = due - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'hoje';
-    if (diffDays === 1) return '1 dia';
-    if (diffDays > 1) return `${diffDays} dias`;
-    return 'vencida';
+    return diffDays > 0 ? diffDays : 0;
   }
 
-  // Validar cliente para WhatsApp
-  validateClientWhatsApp(client) {
-    if (!client.phone) {
-      return { valid: false, error: 'Cliente não possui telefone cadastrado' };
+  formatRecurrence(subscription) {
+    switch (subscription.recurrenceType) {
+      case 'daily':
+        return 'Diária';
+      case 'weekly':
+        return 'Semanal';
+      case 'monthly':
+        return `Mensal (dia ${subscription.dayOfMonth})`;
+      case 'custom':
+        return `A cada ${subscription.recurrenceDays} dias`;
+      default:
+        return 'Personalizada';
     }
+  }
 
-    const cleanPhone = this.formatPhoneNumber(client.phone);
-    if (!cleanPhone) {
-      return { valid: false, error: 'Telefone inválido' };
+  calculateNextDueDate(subscription) {
+    const today = new Date();
+    let nextDate = new Date(today);
+    
+    switch (subscription.recurrenceType) {
+      case 'monthly':
+        if (today.getDate() >= subscription.dayOfMonth) {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        }
+        nextDate.setDate(subscription.dayOfMonth);
+        break;
+      case 'weekly':
+        // Implementar lógica semanal se necessário
+        nextDate.setDate(nextDate.getDate() + 7);
+        break;
+      default:
+        nextDate.setMonth(nextDate.getMonth() + 1);
     }
+    
+    return formatDate(nextDate.toISOString().split('T')[0]);
+  }
 
-    return { valid: true, phone: cleanPhone };
+  // ========================================
+  // API WHATSAPP (EVOLUTION API)
+  // ========================================
+
+  async sendMessage(phone, message, options = {}) {
+    try {
+      if (!this.apiUrl || !this.apiKey || !this.instanceName) {
+        throw new Error('Configuração WhatsApp incompleta');
+      }
+
+      const response = await fetch(`${this.apiUrl}/message/sendText`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          instance: this.instanceName,
+          number: phone.replace(/[^\d]/g, ''), // Remove formatação
+          message: message,
+          ...options
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async getInstanceStatus() {
+    try {
+      if (!this.apiUrl || !this.apiKey || !this.instanceName) {
+        return { success: false, error: 'Configuração incompleta' };
+      }
+
+      const response = await fetch(`${this.apiUrl}/instance/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async getQRCode() {
+    try {
+      if (!this.apiUrl || !this.apiKey || !this.instanceName) {
+        return { success: false, error: 'Configuração incompleta' };
+      }
+
+      const response = await fetch(`${this.apiUrl}/instance/qr`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao obter QR Code:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ========================================
+  // UTILITÁRIOS DE VALIDAÇÃO
+  // ========================================
+
+  isValidPhoneNumber(phone) {
+    // Remove todos os caracteres não numéricos
+    const cleaned = phone.replace(/[^\d]/g, '');
+    // Telefone brasileiro: 11 dígitos (celular) ou 10 dígitos (fixo)
+    return cleaned.length === 11 || cleaned.length === 10;
+  }
+
+  formatPhoneForWhatsApp(phone) {
+    // Remove formatação e adiciona código do país se necessário
+    const cleaned = phone.replace(/[^\d]/g, '');
+    if (cleaned.startsWith('55')) {
+      return cleaned;
+    }
+    return '55' + cleaned;
+  }
+
+  // ========================================
+  // CONFIGURAÇÃO E SETUP
+  // ========================================
+
+  updateAPIConfig(config) {
+    this.apiUrl = config.apiUrl || this.apiUrl;
+    this.apiKey = config.apiKey || this.apiKey;
+    this.instanceName = config.instanceName || this.instanceName;
+  }
+
+  getAPIConfig() {
+    return {
+      apiUrl: this.apiUrl,
+      apiKey: this.apiKey ? '***' + this.apiKey.slice(-4) : '',
+      instanceName: this.instanceName
+    };
+  }
+
+  isConfigured() {
+    return !!(this.apiUrl && this.apiKey && this.instanceName);
   }
 }
 
-// Instância singleton
-export const whatsappService = new WhatsAppService();
+// Criar instância única (Singleton)
+const whatsappService = new WhatsAppService();
+
+export { whatsappService };

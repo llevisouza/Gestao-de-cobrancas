@@ -1,4 +1,4 @@
-// src/components/notifications/WhatsAppMessageTemplates.js
+// src/components/notifications/WhatsAppMessageTemplates.js - VERSÃO CORRIGIDA
 import React, { useState } from 'react';
 import { whatsappService } from '../../services/whatsappService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -8,13 +8,8 @@ const WhatsAppMessageTemplates = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('overdue');
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState(null);
-  const [companySettings, setCompanySettings] = useState({
-    name: 'Conexão Delivery',
-    phone: '(11) 99999-9999',
-    email: 'contato@conexaodelivery.com',
-    pixKey: '11999999999',
-    website: 'www.conexaodelivery.com',
-    supportHours: '8h às 18h, Segunda a Sexta'
+  const [companySettings, setCompanySettings] = useState(() => {
+    return whatsappService.getCompanyInfo();
   });
 
   // Dados de exemplo para preview
@@ -31,7 +26,8 @@ const WhatsAppMessageTemplates = () => {
       amount: 150.00,
       dueDate: '2024-12-25',
       generationDate: '2024-12-01',
-      status: 'pending'
+      status: 'pending',
+      paidDate: null
     },
     subscription: {
       id: 'sub-789',
@@ -72,6 +68,13 @@ const WhatsAppMessageTemplates = () => {
       color: 'bg-green-100 border-green-300 text-green-800',
       icon: '✅',
       example: 'Enviado após confirmação do pagamento'
+    },
+    final_notice: {
+      name: '⚠️ Aviso Final',
+      description: 'Último aviso antes da suspensão',
+      color: 'bg-orange-100 border-orange-300 text-orange-800',
+      icon: '⚠️',
+      example: 'Usado para faturas muito em atraso'
     }
   };
 
@@ -95,7 +98,11 @@ const WhatsAppMessageTemplates = () => {
           message = whatsappService.getNewInvoiceTemplate(invoice, client, subscription);
           break;
         case 'payment_confirmed':
+          invoice.paidDate = new Date().toISOString().split('T')[0]; // Simular data de pagamento
           message = whatsappService.getPaymentConfirmedTemplate(invoice, client, subscription);
+          break;
+        case 'final_notice':
+          message = whatsappService.getFinalNoticeTemplate(invoice, client, subscription);
           break;
         default:
           message = 'Template não encontrado';
@@ -111,37 +118,68 @@ const WhatsAppMessageTemplates = () => {
       });
       setShowPreview(true);
     } catch (error) {
+      console.error('Erro ao gerar preview:', error);
       alert('Erro ao gerar preview: ' + error.message);
     }
   };
 
   // Salvar configurações da empresa
   const saveCompanySettings = () => {
-    whatsappService.updateCompanyInfo(companySettings);
-    alert('✅ Configurações salvas! Os templates foram atualizados.');
+    try {
+      whatsappService.updateCompanyInfo(companySettings);
+      alert('✅ Configurações salvas! Os templates foram atualizados.');
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+      alert('Erro ao salvar configurações: ' + error.message);
+    }
   };
 
   // Copiar template para área de transferência
   const copyTemplate = async (templateType) => {
     try {
-      generatePreview(templateType);
-      const message = previewData?.message || 'Erro ao gerar template';
+      // Gerar o preview primeiro
+      const { client, invoice, subscription } = mockData;
+      whatsappService.updateCompanyInfo(companySettings);
+      
+      let message = '';
+      switch (templateType) {
+        case 'overdue':
+          message = whatsappService.getOverdueInvoiceTemplate(invoice, client, subscription);
+          break;
+        case 'reminder':
+          message = whatsappService.getReminderTemplate(invoice, client, subscription);
+          break;
+        case 'new_invoice':
+          message = whatsappService.getNewInvoiceTemplate(invoice, client, subscription);
+          break;
+        case 'payment_confirmed':
+          invoice.paidDate = new Date().toISOString().split('T')[0];
+          message = whatsappService.getPaymentConfirmedTemplate(invoice, client, subscription);
+          break;
+        case 'final_notice':
+          message = whatsappService.getFinalNoticeTemplate(invoice, client, subscription);
+          break;
+        default:
+          message = 'Template não encontrado';
+      }
+      
       await navigator.clipboard.writeText(message);
       alert('📋 Template copiado para área de transferência!');
     } catch (error) {
-      alert('Erro ao copiar template');
+      console.error('Erro ao copiar template:', error);
+      alert('Erro ao copiar template: ' + error.message);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="dashboard-container">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="dashboard-header">
+        <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="dashboard-title">📱 Templates WhatsApp</h1>
-              <p className="dashboard-subtitle">
+              <h1 className="text-3xl font-bold text-gray-900">📱 Templates WhatsApp</h1>
+              <p className="text-gray-600 mt-1">
                 Personalize as mensagens enviadas para seus clientes
               </p>
             </div>
@@ -270,7 +308,7 @@ const WhatsAppMessageTemplates = () => {
                     type="text"
                     value={companySettings.name}
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, name: e.target.value }))}
-                    className="form-input"
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Ex: Conexão Delivery"
                   />
                 </div>
@@ -283,7 +321,7 @@ const WhatsAppMessageTemplates = () => {
                     type="text"
                     value={companySettings.phone}
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, phone: e.target.value }))}
-                    className="form-input"
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="(11) 99999-9999"
                   />
                 </div>
@@ -296,7 +334,7 @@ const WhatsAppMessageTemplates = () => {
                     type="email"
                     value={companySettings.email}
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, email: e.target.value }))}
-                    className="form-input"
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="contato@empresa.com"
                   />
                 </div>
@@ -309,7 +347,7 @@ const WhatsAppMessageTemplates = () => {
                     type="text"
                     value={companySettings.pixKey}
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, pixKey: e.target.value }))}
-                    className="form-input"
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Email, telefone, CPF ou chave aleatória"
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -325,7 +363,7 @@ const WhatsAppMessageTemplates = () => {
                     type="text"
                     value={companySettings.website}
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, website: e.target.value }))}
-                    className="form-input"
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="www.empresa.com"
                   />
                 </div>
@@ -338,14 +376,14 @@ const WhatsAppMessageTemplates = () => {
                     type="text"
                     value={companySettings.supportHours}
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, supportHours: e.target.value }))}
-                    className="form-input"
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="8h às 18h, Segunda a Sexta"
                   />
                 </div>
 
                 <button
                   onClick={saveCompanySettings}
-                  className="w-full btn-primary"
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                 >
                   💾 Salvar Configurações
                 </button>
@@ -398,99 +436,146 @@ const WhatsAppMessageTemplates = () => {
                 </div>
               </div>
             </div>
+
+            {/* Status do Serviço */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  📊 Status do Serviço
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Configuração atual do WhatsApp
+                </p>
+              </div>
+
+              <div className="p-6">
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">WhatsApp API:</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      whatsappService.isConfigured() 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {whatsappService.isConfigured() ? '✅ Configurado' : '❌ Não Configurado'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Templates:</span>
+                    <span className="font-medium text-green-600">✅ 5 Disponíveis</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Configurações:</span>
+                    <span className="font-medium text-blue-600">✅ Salvas Localmente</span>
+                  </div>
+                </div>
+
+                {!whatsappService.isConfigured() && (
+                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                    <p className="text-xs text-orange-700">
+                      ⚠️ <strong>Atenção:</strong> Configure as variáveis de ambiente do WhatsApp para envio automático de mensagens.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Modal de Preview */}
-        <Modal
-          isOpen={showPreview}
-          onClose={() => setShowPreview(false)}
-          title={previewData ? `📱 Preview: ${previewData.template.name}` : 'Preview'}
-        >
-          {previewData && (
-            <div className="space-y-6">
-              {/* Info do destinatário */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium">
-                      {previewData.client.name.charAt(0)}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">Para: {previewData.client.name}</h4>
-                    <p className="text-sm text-gray-600">{previewData.client.phone}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Preview da mensagem */}
-              <div className="bg-green-50 border-l-4 border-green-400 rounded-r-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <span className="text-2xl">{previewData.template.icon}</span>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-green-800 mb-2">
-                      {previewData.template.name}
-                    </h4>
-                    <div className="bg-white rounded-lg p-4 border border-green-200">
-                      <pre className="text-sm whitespace-pre-wrap font-sans text-gray-800">
-                        {previewData.message}
-                      </pre>
+        {showPreview && (
+          <Modal
+            isOpen={showPreview}
+            onClose={() => setShowPreview(false)}
+            title={previewData ? `📱 Preview: ${previewData.template.name}` : 'Preview'}
+          >
+            {previewData && (
+              <div className="space-y-6">
+                {/* Info do destinatário */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                      <span className="text-white font-medium">
+                        {previewData.client.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">Para: {previewData.client.name}</h4>
+                      <p className="text-sm text-gray-600">{previewData.client.phone}</p>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Informações contextuais */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div className="bg-blue-50 p-3 rounded-lg">
-                  <h5 className="font-medium text-blue-900 mb-1">📄 Fatura</h5>
-                  <div className="text-blue-700 space-y-1">
-                    <div>Valor: {formatCurrency(previewData.invoice.amount)}</div>
-                    <div>Vencimento: {formatDate(previewData.invoice.dueDate)}</div>
-                    <div>ID: #{previewData.invoice.id}</div>
+                {/* Preview da mensagem */}
+                <div className="bg-green-50 border-l-4 border-green-400 rounded-r-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <span className="text-2xl">{previewData.template.icon}</span>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-green-800 mb-2">
+                        {previewData.template.name}
+                      </h4>
+                      <div className="bg-white rounded-lg p-4 border border-green-200">
+                        <pre className="text-sm whitespace-pre-wrap font-sans text-gray-800">
+                          {previewData.message}
+                        </pre>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-purple-50 p-3 rounded-lg">
-                  <h5 className="font-medium text-purple-900 mb-1">🔄 Plano</h5>
-                  <div className="text-purple-700 space-y-1">
-                    <div>{previewData.subscription.name}</div>
-                    <div>Recorrência: Mensal</div>
-                    <div>Ativo desde: {formatDate(previewData.subscription.startDate)}</div>
+                {/* Informações contextuais */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <h5 className="font-medium text-blue-900 mb-1">📄 Fatura</h5>
+                    <div className="text-blue-700 space-y-1">
+                      <div>Valor: {formatCurrency(previewData.invoice.amount)}</div>
+                      <div>Vencimento: {formatDate(previewData.invoice.dueDate)}</div>
+                      <div>ID: #{previewData.invoice.id}</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50 p-3 rounded-lg">
+                    <h5 className="font-medium text-purple-900 mb-1">🔄 Plano</h5>
+                    <div className="text-purple-700 space-y-1">
+                      <div>{previewData.subscription.name}</div>
+                      <div>Recorrência: Mensal</div>
+                      <div>Ativo desde: {formatDate(previewData.subscription.startDate)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ações */}
+                <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                  <div className="text-sm text-gray-600">
+                    Template gerado com suas configurações atuais
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(previewData.message);
+                        alert('📋 Template copiado!');
+                      }}
+                      className="bg-gray-200 text-gray-900 px-4 py-2 rounded-md font-medium hover:bg-gray-300 text-sm"
+                    >
+                      📋 Copiar Texto
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowPreview(false)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 text-sm"
+                    >
+                      ✓ Fechar
+                    </button>
                   </div>
                 </div>
               </div>
-
-              {/* Ações */}
-              <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                <div className="text-sm text-gray-600">
-                  Template gerado com suas configurações atuais
-                </div>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(previewData.message);
-                      alert('📋 Template copiado!');
-                    }}
-                    className="btn-secondary text-sm"
-                  >
-                    📋 Copiar Texto
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowPreview(false)}
-                    className="btn-primary text-sm"
-                  >
-                    ✓ Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </Modal>
+            )}
+          </Modal>
+        )}
       </div>
     </div>
   );

@@ -198,7 +198,7 @@ export const DEFAULT_WHATSAPP_AUTOMATION_CONFIG = {
 };
 
 
-export default {
+const constants = {
   ROUTES,
   INVOICE_STATUS,
   INVOICE_STATUS_LABELS,
@@ -218,3 +218,5 @@ export default {
   THEME_COLORS,
   NOTIFICATION_CONFIG
 };
+
+export default constants;

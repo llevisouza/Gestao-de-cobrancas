@@ -96,7 +96,7 @@ export const processInvoicesStandardized = (invoices) => {
  */
 export const calculatePendingNotificationsStandardized = (invoices, clients, subscriptions) => {
   const today = new Date();
-  const threeDaysFromNow = new Date(today.getTime() + (3 * 24 * 60 * 60 * 1000));
+  // const threeDaysFromNow = new Date(today.getTime() + (3 * 24 * 60 * 60 * 1000));
   
   const notifications = {
     overdue: [],

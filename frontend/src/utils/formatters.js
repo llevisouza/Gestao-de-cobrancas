@@ -268,7 +268,7 @@ export const formatStatus = (status) => {
 };
 
 // Export default com todas as funções (para compatibilidade)
-export default {
+const formatters = {
   formatCurrency,
   formatDate,
   formatPhone,
@@ -287,3 +287,5 @@ export default {
   cleanNumericInput,
   formatStatus
 };
+
+export default formatters;

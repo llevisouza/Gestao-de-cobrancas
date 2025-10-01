@@ -4,9 +4,9 @@ import { useAutomation } from '../../hooks/useAutomation';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const AutomationDashboard = ({ 
-  config = {}, 
+  config: propConfig = {}, 
   onConfigChange = () => {}, 
-  connectionStatus = null,
+  connectionStatus: propConnectionStatus = null,
   clients = [],
   invoices = [],
   subscriptions = []

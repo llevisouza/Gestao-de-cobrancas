@@ -13,7 +13,7 @@ const WhatsAppQuickActions = ({ invoices, clients, subscriptions, onNavigate }) 
   const {
     isConnected,
     loading,
-    connectionStatus,
+    // connectionStatus,
     sendOverdueNotification,
     sendReminderNotification,
     getConnectionStatusText

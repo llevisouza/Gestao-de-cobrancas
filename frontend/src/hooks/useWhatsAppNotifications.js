@@ -8,6 +8,18 @@ export const useWhatsAppNotifications = () => {
   const [messagingStats, setMessagingStats] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Obter estatísticas de mensagens
+  const getMessagingStats = useCallback(async (days = 30) => {
+    try {
+      const stats = await whatsappService.getMessagingStats(days);
+      setMessagingStats(stats);
+      return stats;
+    } catch (error) {
+      console.error('Erro ao obter estatísticas:', error);
+      return null;
+    }
+  }, []);
+
   // Verificar conexão
   const checkConnection = useCallback(async () => {
     setLoading(true);
@@ -49,7 +61,7 @@ export const useWhatsAppNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [isConnected, getMessagingStats]);
 
   // Enviar lembrete de vencimento
   const sendReminderNotification = useCallback(async (invoice, client, subscription = null) => {
@@ -72,7 +84,7 @@ export const useWhatsAppNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [isConnected, getMessagingStats]);
 
   // Enviar notificação de nova fatura
   const sendNewInvoiceNotification = useCallback(async (invoice, client, subscription = null) => {
@@ -95,7 +107,7 @@ export const useWhatsAppNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [isConnected, getMessagingStats]);
 
   // Enviar confirmação de pagamento
   const sendPaymentConfirmation = useCallback(async (invoice, client, subscription = null) => {
@@ -118,7 +130,7 @@ export const useWhatsAppNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [isConnected, getMessagingStats]);
 
   // Enviar notificações em lote
   const sendBulkNotifications = useCallback(async (notifications, delayMs = 3000) => {
@@ -144,19 +156,7 @@ export const useWhatsAppNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [isConnected]);
-
-  // Obter estatísticas de mensagens
-  const getMessagingStats = useCallback(async (days = 30) => {
-    try {
-      const stats = await whatsappService.getMessagingStats(days);
-      setMessagingStats(stats);
-      return stats;
-    } catch (error) {
-      console.error('Erro ao obter estatísticas:', error);
-      return null;
-    }
-  }, []);
+  }, [isConnected, getMessagingStats]);
 
   // Obter histórico de mensagens de um cliente
   const getClientMessageHistory = useCallback(async (clientId, limit = 10) => {

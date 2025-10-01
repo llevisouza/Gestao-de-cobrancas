@@ -12,7 +12,7 @@ import {
   where,
   writeBatch,
   serverTimestamp,
-  Timestamp
+  // Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 

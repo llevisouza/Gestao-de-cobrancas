@@ -1,8 +1,8 @@
 // src/services/whatsappAutomationService.js - AUTOMAÇÃO COMPLETA
 import { whatsappService } from './whatsappService';
-import { collection, query, where, getDocs, addDoc, limit, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, limit } from 'firebase/firestore';
 import { db } from './firebase';
-import { formatDate, getCurrentDate, getDaysDifference } from '../utils/dateUtils';
+import { getCurrentDate, getDaysDifference } from '../utils/dateUtils';
 
 class WhatsAppAutomationService {
   constructor() {
@@ -250,7 +250,7 @@ class WhatsAppAutomationService {
 
   // Calcular notificações pendentes
   async calculatePendingNotifications(invoices, clients, subscriptions) {
-    const today = new Date();
+    // const today = new Date();
     const notifications = [];
 
     for (const invoice of invoices) {

@@ -1,7 +1,7 @@
 // src/components/dashboard/Dashboard.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
-import KPICards from './KPICards';
+// import KPICards from './KPICards';
 import InvoiceTable from './InvoiceTable';
 import WhatsAppQuickActions from './WhatsAppQuickActions';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -26,8 +26,19 @@ const Dashboard = ({ onNavigate }) => {
     exportData: false
   });
   const [notifications, setNotifications] = useState([]);
-  const [showAnimations, setShowAnimations] = useState(true);
+  const [showAnimations] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
+
+  // Função de notificação (definida primeiro para evitar problemas de ordem)
+  const showNotification = useCallback((type, title, message) => {
+    const icons = {
+      success: '✅',
+      error: '❌',
+      warning: '⚠️',
+      info: 'ℹ️'
+    };
+    alert(`${icons[type]} ${title}\n${message}`);
+  }, []);
 
   // Atualizar relógio a cada minuto
   useEffect(() => {
@@ -177,7 +188,7 @@ const Dashboard = ({ onNavigate }) => {
     } finally {
       setQuickActions(prev => ({ ...prev, createExample: false }));
     }
-  }, [createExampleData]);
+  }, [createExampleData, showNotification]);
 
   const handleGenerateInvoices = useCallback(async () => {
     try {
@@ -194,17 +205,7 @@ const Dashboard = ({ onNavigate }) => {
     } finally {
       setQuickActions(prev => ({ ...prev, generateInvoices: false }));
     }
-  }, [generateInvoices]);
-
-  const showNotification = useCallback((type, title, message) => {
-    const icons = {
-      success: '✅',
-      error: '❌',
-      warning: '⚠️',
-      info: 'ℹ️'
-    };
-    alert(`${icons[type]} ${title}\n${message}`);
-  }, []);
+  }, [generateInvoices, showNotification]);
 
   const getGreeting = useCallback(() => {
     const hour = currentTime.getHours();

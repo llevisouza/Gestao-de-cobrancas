@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { whatsappService } from '../../services/whatsappService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { getDaysDifference } from '../../utils/dateUtils';
+// import { getDaysDifference } from '../../utils/dateUtils';
 
 const WhatsAppManualSender = ({ 
   clients = [], 
@@ -15,7 +15,7 @@ const WhatsAppManualSender = ({
   const [selectedClients, setSelectedClients] = useState([]);
   const [messageType, setMessageType] = useState('custom');
   const [customMessage, setCustomMessage] = useState('');
-  const [selectedInvoices, setSelectedInvoices] = useState([]);
+  // const [selectedInvoices, setSelectedInvoices] = useState([]);
   
   // ===== ESTADOS DE CONTROLE =====
   const [activeStep, setActiveStep] = useState(1); // 1: Seleção, 2: Mensagem, 3: Confirmação

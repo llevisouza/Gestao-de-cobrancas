@@ -1,5 +1,5 @@
 // src/components/notifications/WhatsAppBillingManager.js - VERSÃO CORRIGIDA
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { whatsappService } from '../../services/whatsappService';
 import { whatsappAutomationService } from '../../services/whatsappAutomationService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -657,53 +657,8 @@ const WhatsAppBillingManager = ({
   const [templates, setTemplates] = useState({});
   const [qrCode, setQrCode] = useState(null);
 
-  // Carregar dados iniciais
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  // Carregar dados
-  const loadInitialData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        checkConnection(),
-        loadAutomationStatus(),
-        calculateNotifications(),
-        loadTemplates()
-      ]);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Verificar conexão WhatsApp
-  const checkConnection = async () => {
-    try {
-      const status = await whatsappService.checkConnection();
-      setConnectionStatus(status);
-      return status;
-    } catch (error) {
-      console.error('Erro ao verificar conexão:', error);
-      setConnectionStatus({ connected: false, error: error.message });
-    }
-  };
-
-  // Carregar status da automação
-  const loadAutomationStatus = async () => {
-    try {
-      const stats = whatsappAutomationService.getStats();
-      setAutomationRunning(stats.isRunning);
-      setAutomationStats(stats);
-    } catch (error) {
-      console.error('Erro ao carregar status da automação:', error);
-    }
-  };
-
-  // Calcular notificações pendentes
-  const calculateNotifications = async () => {
+  // Funções internas definidas antes de serem usadas
+  const calculateNotifications = useCallback(async () => {
     try {
       const pendingNotifications = [];
       
@@ -738,6 +693,51 @@ const WhatsAppBillingManager = ({
     } catch (error) {
       console.error('Erro ao calcular notificações:', error);
       return [];
+    }
+  }, [clients, invoices, subscriptions]);
+
+  // Carregar dados
+  const loadInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        checkConnection(),
+        loadAutomationStatus(),
+        calculateNotifications(),
+        loadTemplates()
+      ]);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [calculateNotifications]);
+
+  // Carregar dados iniciais
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Verificar conexão WhatsApp
+  const checkConnection = async () => {
+    try {
+      const status = await whatsappService.checkConnection();
+      setConnectionStatus(status);
+      return status;
+    } catch (error) {
+      console.error('Erro ao verificar conexão:', error);
+      setConnectionStatus({ connected: false, error: error.message });
+    }
+  };
+
+  // Carregar status da automação
+  const loadAutomationStatus = async () => {
+    try {
+      const stats = whatsappAutomationService.getStats();
+      setAutomationRunning(stats.isRunning);
+      setAutomationStats(stats);
+    } catch (error) {
+      console.error('Erro ao carregar status da automação:', error);
     }
   };
 
@@ -953,14 +953,14 @@ const WhatsAppBillingManager = ({
   // Funções auxiliares
   const getStatusColor = (connected) => connected ? 'text-green-600' : 'text-red-600';
   
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'overdue': return '🚨';
-      case 'reminder': return '🔔';
-      case 'new_invoice': return '📄';
-      default: return '📱';
-    }
-  };
+  // const getNotificationIcon = (type) => {
+  //   switch (type) {
+  //     case 'overdue': return '🚨';
+  //     case 'reminder': return '🔔';
+  //     case 'new_invoice': return '📄';
+  //     default: return '📱';
+  //   }
+  // };
 
   const getTypeLabel = (type) => {
     const labels = {
@@ -1120,7 +1120,7 @@ const WhatsAppBillingManager = ({
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <span className="text-2xl">📊</span>
+                    <span className="text-xl">📊</span>
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">Notificações</h3>

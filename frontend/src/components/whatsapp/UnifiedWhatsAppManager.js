@@ -8,11 +8,11 @@ import { whatsappService } from '../../services/whatsappService';
 
 // Usando suas constantes existentes + as novas para automação
 import { 
-  ROUTES,
+  // ROUTES,
   DEFAULT_WHATSAPP_AUTOMATION_CONFIG,
-  WHATSAPP_NOTIFICATION_TYPES,
-  WHATSAPP_NOTIFICATION_LABELS,
-  DEFAULT_WHATSAPP_COMPANY_INFO
+  // WHATSAPP_NOTIFICATION_TYPES,
+  // WHATSAPP_NOTIFICATION_LABELS,
+  // DEFAULT_WHATSAPP_COMPANY_INFO
 } from '../../utils/constants';
 
 const UnifiedWhatsAppManager = ({ clients = [], invoices = [], subscriptions = [] }) => {

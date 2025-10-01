@@ -364,15 +364,15 @@ const LoginPage = ({ onLogin }) => {
         {/* Links adicionais */}
         <div className="mt-8 text-center space-y-4">
           <div className="flex justify-center space-x-6 text-sm">
-            <a href="#" className="text-orange-600 hover:text-orange-500 font-medium transition duration-150">
+            <button className="text-orange-600 hover:text-orange-500 font-medium transition duration-150">
               📧 Suporte
-            </a>
-            <a href="#" className="text-orange-600 hover:text-orange-500 font-medium transition duration-150">
+            </button>
+            <button className="text-orange-600 hover:text-orange-500 font-medium transition duration-150">
               📖 Documentação
-            </a>
-            <a href="#" className="text-orange-600 hover:text-orange-500 font-medium transition duration-150">
+            </button>
+            <button className="text-orange-600 hover:text-orange-500 font-medium transition duration-150">
               🎥 Tutorial
-            </a>
+            </button>
           </div>
           
           <div className="bg-white/60 rounded-xl p-4 border border-white/50">

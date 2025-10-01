@@ -106,35 +106,10 @@ const InvoiceTable = ({ invoices, clients }) => {
     }
   };
 
-  const handleStatusChange = async (invoiceId, newStatus) => {
-    if (updatingInvoices.has(invoiceId)) return;
-    
-    setUpdatingInvoices(prev => new Set([...prev, invoiceId]));
-    
-    try {
-      const updateData = { status: newStatus };
-      
-      if (newStatus === 'paid') {
-        updateData.paidDate = getCurrentDate();
-        updateData.paidAt = new Date().toISOString();
-      }
-      
-      await updateInvoice(invoiceId, updateData);
-      
-      if (newStatus === 'paid') {
-        alert('Fatura marcada como paga!');
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar fatura:', error);
-      alert('Erro ao atualizar status da fatura');
-    } finally {
-      setUpdatingInvoices(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(invoiceId);
-        return newSet;
-      });
-    }
-  };
+  // Função para mudança de status (implementação futura)
+  // const handleStatusChange = async (invoiceId, newStatus) => {
+  //   // Implementação futura
+  // };
 
   const getStatusBadge = (status) => {
     const badgeMap = {

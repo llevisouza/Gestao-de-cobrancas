@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFirebaseAuth } from './hooks/useFirebaseAuth';
 import { useFirestore } from './hooks/useFirestore';
 import { ROUTES } from './utils/constants';

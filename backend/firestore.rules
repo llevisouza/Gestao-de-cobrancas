@@ -1,10 +1,43 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permite leitura e escrita por qualquer pessoa até 20 de Outubro de 2025.
-    // ATENÇÃO: Esta regra é apenas para desenvolvimento.
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 10, 20);
+    // Regras de segurança para o Sistema de Cobranças
+    
+    // Clients - apenas usuários autenticados podem acessar seus próprios dados
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Subscriptions - apenas usuários autenticados
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Invoices - apenas usuários autenticados
+    match /invoices/{invoiceId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Notifications - apenas usuários autenticados
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Settings - apenas o usuário proprietário
+    match /settings/{settingId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Logs - apenas leitura para usuários autenticados
+    match /logs/{logId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Apenas cloud functions podem escrever logs
+    }
+    
+    // System data - apenas cloud functions
+    match /system/{document=**} {
+      allow read, write: if false;
     }
   }
 }

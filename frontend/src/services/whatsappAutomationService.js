@@ -1,8 +1,8 @@
 // src/services/whatsappAutomationService.js - AUTOMAÇÃO COMPLETA
-import { whatsappService } from './whatsappService.js';
-import { collection, query, where, getDocs, addDoc,limit, updateDoc, doc } from 'firebase/firestore';
-import { db } from './firebase.js';
-import { formatDate, getCurrentDate, getDaysDifference } from '../utils/dateUtils.js';
+import { whatsappService } from './whatsappService';
+import { collection, query, where, getDocs, addDoc, limit, updateDoc, doc } from 'firebase/firestore';
+import { db } from './firebase';
+import { formatDate, getCurrentDate, getDaysDifference } from '../utils/dateUtils';
 
 class WhatsAppAutomationService {
   constructor() {

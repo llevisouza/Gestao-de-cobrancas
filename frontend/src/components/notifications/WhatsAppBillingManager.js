@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { whatsappService } from '../../services/whatsappService';
 import { whatsappAutomationService } from '../../services/whatsappAutomationService';
-import { formatCurrency } from '../../utils/formatters';
-import { formatDate } from '../../utils/dateUtils';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 import WhatsAppManualSender from '../whatsapp/WhatsAppManualSender';
 
 // COMPONENTE DE CONFIGURAÇÕES CORRIGIDO E COMPLETO

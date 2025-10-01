@@ -1,5 +1,13 @@
-// src/services/whatsappService.js - SERVIÇO COMPLETO COM TEMPLATES
+// src/services/whatsappService.js - VERSÃO COM FIREBASE FIRESTORE
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { db } from './firebase';
+import { auth } from './firebase';
 
 class WhatsAppService {
   constructor() {
@@ -17,26 +25,112 @@ class WhatsAppService {
       supportHours: '8h às 18h, Segunda a Sexta'
     };
 
-    this.loadCompanyInfo();
+    // Carregar configurações do Firebase quando houver usuário
+    this.loadCompanyInfoFromFirebase();
   }
 
   // ========================================
-  // CONFIGURAÇÕES DA EMPRESA
+  // CONFIGURAÇÕES DA EMPRESA - FIREBASE
   // ========================================
   
-  loadCompanyInfo() {
-    const saved = localStorage.getItem('whatsapp_company_info');
-    if (saved) {
-      this.companyInfo = { ...this.companyInfo, ...JSON.parse(saved) };
+  async loadCompanyInfoFromFirebase() {
+    try {
+      // Aguardar usuário estar logado
+      if (!auth.currentUser) {
+        console.log('🔄 Aguardando usuário para carregar configurações...');
+        return;
+      }
+
+      const userId = auth.currentUser.uid;
+      const configDocRef = doc(db, 'settings', `company_${userId}`);
+      const configDoc = await getDoc(configDocRef);
+      
+      if (configDoc.exists()) {
+        const savedConfig = configDoc.data();
+        this.companyInfo = { ...this.companyInfo, ...savedConfig };
+        console.log('✅ Configurações da empresa carregadas do Firebase:', this.companyInfo.name);
+      } else {
+        console.log('ℹ️ Nenhuma configuração salva encontrada, usando padrões');
+        // Salvar configurações padrão no Firebase
+        await this.saveCompanyInfoToFirebase();
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar configurações do Firebase:', error);
+      // Fallback para localStorage temporário
+      this.loadCompanyInfoFromLocalStorage();
     }
   }
 
-  updateCompanyInfo(newInfo) {
-    this.companyInfo = { ...this.companyInfo, ...newInfo };
+  async saveCompanyInfoToFirebase() {
+    try {
+      if (!auth.currentUser) {
+        console.error('❌ Usuário não autenticado para salvar configurações');
+        // Fallback para localStorage
+        this.saveCompanyInfoToLocalStorage();
+        return false;
+      }
+
+      const userId = auth.currentUser.uid;
+      const configDocRef = doc(db, 'settings', `company_${userId}`);
+      
+      await setDoc(configDocRef, {
+        ...this.companyInfo,
+        updatedAt: serverTimestamp(),
+        userId: userId
+      }, { merge: true });
+      
+      console.log('✅ Configurações da empresa salvas no Firebase!');
+      
+      // Também salvar no localStorage como backup
+      this.saveCompanyInfoToLocalStorage();
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao salvar configurações no Firebase:', error);
+      // Fallback para localStorage
+      this.saveCompanyInfoToLocalStorage();
+      return false;
+    }
+  }
+
+  // Fallback para localStorage
+  loadCompanyInfoFromLocalStorage() {
+    const saved = localStorage.getItem('whatsapp_company_info');
+    if (saved) {
+      this.companyInfo = { ...this.companyInfo, ...JSON.parse(saved) };
+      console.log('🔄 Configurações carregadas do localStorage (fallback)');
+    }
+  }
+
+  saveCompanyInfoToLocalStorage() {
     localStorage.setItem('whatsapp_company_info', JSON.stringify(this.companyInfo));
+    console.log('💾 Configurações salvas no localStorage (backup)');
+  }
+
+  async updateCompanyInfo(newInfo) {
+    console.log('🔄 Atualizando configurações da empresa:', newInfo);
+    
+    // Atualizar configurações locais
+    this.companyInfo = { ...this.companyInfo, ...newInfo };
+    
+    // Salvar no Firebase
+    const firebaseSaved = await this.saveCompanyInfoToFirebase();
+    
+    if (!firebaseSaved) {
+      console.warn('⚠️ Não foi possível salvar no Firebase, salvo apenas localmente');
+    }
+    
+    return firebaseSaved;
   }
 
   getCompanyInfo() {
+    return this.companyInfo;
+  }
+
+  // Método para recarregar configurações (útil quando usuário faz login)
+  async reloadCompanyInfo() {
+    console.log('🔄 Recarregando configurações da empresa...');
+    await this.loadCompanyInfoFromFirebase();
     return this.companyInfo;
   }
 
@@ -423,6 +517,50 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
 
   isConfigured() {
     return !!(this.apiUrl && this.apiKey && this.instanceName);
+  }
+
+  // ========================================
+  // MÉTODOS ADICIONAIS PARA COMPATIBILIDADE
+  // ========================================
+
+  async checkConnection() {
+    try {
+      const status = await this.getInstanceStatus();
+      return {
+        connected: status.success && status.data?.status === 'connected',
+        data: status.data,
+        error: status.error
+      };
+    } catch (error) {
+      return {
+        connected: false,
+        error: error.message
+      };
+    }
+  }
+
+  async sendOverdueNotification(invoice, client, subscription = null) {
+    const message = this.getOverdueInvoiceTemplate(invoice, client, subscription);
+    const phone = this.formatPhoneForWhatsApp(client.phone);
+    return await this.sendMessage(phone, message);
+  }
+
+  async sendReminderNotification(invoice, client, subscription = null) {
+    const message = this.getReminderTemplate(invoice, client, subscription);
+    const phone = this.formatPhoneForWhatsApp(client.phone);
+    return await this.sendMessage(phone, message);
+  }
+
+  async sendNewInvoiceNotification(invoice, client, subscription = null) {
+    const message = this.getNewInvoiceTemplate(invoice, client, subscription);
+    const phone = this.formatPhoneForWhatsApp(client.phone);
+    return await this.sendMessage(phone, message);
+  }
+
+  async sendPaymentConfirmation(invoice, client, subscription = null) {
+    const message = this.getPaymentConfirmedTemplate(invoice, client, subscription);
+    const phone = this.formatPhoneForWhatsApp(client.phone);
+    return await this.sendMessage(phone, message);
   }
 }
 

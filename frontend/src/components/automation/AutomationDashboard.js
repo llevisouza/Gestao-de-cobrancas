@@ -3,7 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { useAutomation } from '../../hooks/useAutomation';
 import LoadingSpinner from '../common/LoadingSpinner';
 
-const AutomationDashboard = () => {
+const AutomationDashboard = ({ 
+  config = {}, 
+  onConfigChange = () => {}, 
+  connectionStatus = null,
+  clients = [],
+  invoices = [],
+  subscriptions = []
+}) => {
   const {
     // Estados
     isRunning,

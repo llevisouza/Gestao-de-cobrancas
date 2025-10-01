@@ -1,16 +1,38 @@
-// src/components/notifications/WhatsAppMessageTemplates.js - VERSÃO CORRIGIDA
-import React, { useState } from 'react';
+// src/components/notifications/WhatsAppMessageTemplates.js - VERSÃO CORRIGIDA COM FIREBASE
+import React, { useState, useEffect } from 'react';
 import { whatsappService } from '../../services/whatsappService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 import Modal from '../common/Modal';
 
 const WhatsAppMessageTemplates = () => {
+  const { user } = useFirebaseAuth();
   const [selectedTemplate, setSelectedTemplate] = useState('overdue');
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState(null);
-  const [companySettings, setCompanySettings] = useState(() => {
-    return whatsappService.getCompanyInfo();
-  });
+  const [companySettings, setCompanySettings] = useState(whatsappService.getCompanyInfo());
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Recarregar configurações quando usuário logar ou componente montar
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (user) {
+        try {
+          setLoading(true);
+          const settings = await whatsappService.reloadCompanyInfo();
+          setCompanySettings(settings);
+          console.log('✅ Configurações carregadas do Firebase:', settings.name);
+        } catch (error) {
+          console.error('❌ Erro ao carregar configurações:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadSettings();
+  }, [user]);
 
   // Dados de exemplo para preview
   const mockData = {
@@ -84,9 +106,6 @@ const WhatsAppMessageTemplates = () => {
       let message = '';
       const { client, invoice, subscription } = mockData;
       
-      // Configurar o serviço com as configurações atuais
-      whatsappService.updateCompanyInfo(companySettings);
-      
       switch (templateType) {
         case 'overdue':
           message = whatsappService.getOverdueInvoiceTemplate(invoice, client, subscription);
@@ -98,8 +117,8 @@ const WhatsAppMessageTemplates = () => {
           message = whatsappService.getNewInvoiceTemplate(invoice, client, subscription);
           break;
         case 'payment_confirmed':
-          invoice.paidDate = new Date().toISOString().split('T')[0]; // Simular data de pagamento
-          message = whatsappService.getPaymentConfirmedTemplate(invoice, client, subscription);
+          const invoiceWithPayment = { ...invoice, paidDate: new Date().toISOString().split('T')[0] };
+          message = whatsappService.getPaymentConfirmedTemplate(invoiceWithPayment, client, subscription);
           break;
         case 'final_notice':
           message = whatsappService.getFinalNoticeTemplate(invoice, client, subscription);
@@ -123,53 +142,74 @@ const WhatsAppMessageTemplates = () => {
     }
   };
 
-  // Salvar configurações da empresa
-  const saveCompanySettings = () => {
+  // Salvar configurações da empresa no Firebase
+  const saveCompanySettings = async () => {
+    if (!user) {
+      alert('❌ Você precisa estar logado para salvar as configurações');
+      return;
+    }
+
     try {
-      whatsappService.updateCompanyInfo(companySettings);
-      alert('✅ Configurações salvas! Os templates foram atualizados.');
+      setLoading(true);
+      setSuccessMessage('');
+      
+      console.log('💾 Salvando configurações no Firebase:', companySettings);
+      
+      // Atualizar configurações no serviço (que salva no Firebase)
+      const success = await whatsappService.updateCompanyInfo(companySettings);
+      
+      if (success) {
+        setSuccessMessage('✅ Configurações salvas no Firebase com sucesso!');
+        console.log('✅ Configurações salvas no Firebase!');
+      } else {
+        setSuccessMessage('⚠️ Configurações salvas localmente (problema na conexão com servidor)');
+        console.warn('⚠️ Fallback para localStorage aplicado');
+      }
+      
+      // Limpar mensagem após 3 segundos
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
     } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações: ' + error.message);
+      console.error('❌ Erro ao salvar configurações:', error);
+      alert('❌ Erro ao salvar configurações: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   // Copiar template para área de transferência
   const copyTemplate = async (templateType) => {
     try {
-      // Gerar o preview primeiro
-      const { client, invoice, subscription } = mockData;
-      whatsappService.updateCompanyInfo(companySettings);
+      generatePreview(templateType);
       
-      let message = '';
-      switch (templateType) {
-        case 'overdue':
-          message = whatsappService.getOverdueInvoiceTemplate(invoice, client, subscription);
-          break;
-        case 'reminder':
-          message = whatsappService.getReminderTemplate(invoice, client, subscription);
-          break;
-        case 'new_invoice':
-          message = whatsappService.getNewInvoiceTemplate(invoice, client, subscription);
-          break;
-        case 'payment_confirmed':
-          invoice.paidDate = new Date().toISOString().split('T')[0];
-          message = whatsappService.getPaymentConfirmedTemplate(invoice, client, subscription);
-          break;
-        case 'final_notice':
-          message = whatsappService.getFinalNoticeTemplate(invoice, client, subscription);
-          break;
-        default:
-          message = 'Template não encontrado';
+      // Aguardar um pouco para o preview ser gerado
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (previewData?.message) {
+        await navigator.clipboard.writeText(previewData.message);
+        alert('📋 Template copiado para área de transferência!');
       }
-      
-      await navigator.clipboard.writeText(message);
-      alert('📋 Template copiado para área de transferência!');
     } catch (error) {
       console.error('Erro ao copiar template:', error);
       alert('Erro ao copiar template: ' + error.message);
     }
   };
+
+  // Verificar status da conexão Firebase
+  const getFirebaseStatus = () => {
+    if (!user) {
+      return { status: 'disconnected', message: '❌ Não logado', color: 'text-red-600' };
+    }
+    
+    return { 
+      status: 'connected', 
+      message: '✅ Firebase conectado', 
+      color: 'text-green-600',
+      userEmail: user.email 
+    };
+  };
+
+  const firebaseStatus = getFirebaseStatus();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -185,6 +225,13 @@ const WhatsAppMessageTemplates = () => {
             </div>
           </div>
         </div>
+
+        {/* Mensagem de sucesso */}
+        {successMessage && (
+          <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
+            <p className="text-green-800 font-medium">{successMessage}</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Lista de Templates */}
@@ -279,7 +326,7 @@ const WhatsAppMessageTemplates = () => {
                       <li><strong>Visual Atrativo:</strong> Emojis e formatação para melhor comunicação</li>
                       <li><strong>Chave PIX:</strong> Incluída automaticamente em cada mensagem</li>
                       <li><strong>Informações do Plano:</strong> Detalhes da recorrência quando disponível</li>
-                      <li><strong>Personalizável:</strong> Ajuste as informações da empresa nas configurações</li>
+                      <li><strong>Persistência:</strong> Configurações salvas no Firebase para sincronização entre dispositivos</li>
                     </ul>
                   </div>
                 </div>
@@ -297,6 +344,11 @@ const WhatsAppMessageTemplates = () => {
                 <p className="text-sm text-gray-600 mt-1">
                   Essas informações aparecem nos templates
                 </p>
+                {firebaseStatus.status === 'connected' && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Salvando como: {firebaseStatus.userEmail}
+                  </p>
+                )}
               </div>
 
               <div className="p-6 space-y-4">
@@ -310,6 +362,7 @@ const WhatsAppMessageTemplates = () => {
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, name: e.target.value }))}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Ex: Conexão Delivery"
+                    disabled={loading}
                   />
                 </div>
 
@@ -323,6 +376,7 @@ const WhatsAppMessageTemplates = () => {
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, phone: e.target.value }))}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="(11) 99999-9999"
+                    disabled={loading}
                   />
                 </div>
 
@@ -336,6 +390,7 @@ const WhatsAppMessageTemplates = () => {
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, email: e.target.value }))}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="contato@empresa.com"
+                    disabled={loading}
                   />
                 </div>
 
@@ -349,6 +404,7 @@ const WhatsAppMessageTemplates = () => {
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, pixKey: e.target.value }))}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Email, telefone, CPF ou chave aleatória"
+                    disabled={loading}
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Esta chave será usada quando o cliente não tiver PIX cadastrado
@@ -365,6 +421,7 @@ const WhatsAppMessageTemplates = () => {
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, website: e.target.value }))}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="www.empresa.com"
+                    disabled={loading}
                   />
                 </div>
 
@@ -378,15 +435,101 @@ const WhatsAppMessageTemplates = () => {
                     onChange={(e) => setCompanySettings(prev => ({ ...prev, supportHours: e.target.value }))}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     placeholder="8h às 18h, Segunda a Sexta"
+                    disabled={loading}
                   />
                 </div>
 
                 <button
                   onClick={saveCompanySettings}
-                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  disabled={loading || !user}
+                  className={`w-full px-4 py-2 rounded-md font-medium transition-colors ${
+                    loading || !user
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                  }`}
                 >
-                  💾 Salvar Configurações
+                  {loading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"></circle>
+                        <path fill="currentColor" strokeWidth="4" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Salvando...
+                    </span>
+                  ) : !user ? (
+                    '🔒 Faça login para salvar'
+                  ) : (
+                    '💾 Salvar no Firebase'
+                  )}
                 </button>
+                
+                {!user && (
+                  <p className="text-xs text-orange-600 text-center">
+                    Faça login para salvar permanentemente no Firebase
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Status do Firebase */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  🔥 Status Firebase
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Conectividade e persistência de dados
+                </p>
+              </div>
+
+              <div className="p-6">
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Conexão Firebase:</span>
+                    <span className={`font-medium ${firebaseStatus.color}`}>
+                      {firebaseStatus.message}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">WhatsApp API:</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      whatsappService.isConfigured() 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {whatsappService.isConfigured() ? '✅ Configurado' : '❌ Não Configurado'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Templates:</span>
+                    <span className="font-medium text-green-600">✅ 5 Disponíveis</span>
+                  </div>
+
+                  {firebaseStatus.status === 'connected' && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Usuário:</span>
+                      <span className="font-medium text-blue-600">{firebaseStatus.userEmail}</span>
+                    </div>
+                  )}
+                </div>
+
+                {firebaseStatus.status === 'disconnected' && (
+                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                    <p className="text-xs text-orange-700">
+                      ⚠️ <strong>Atenção:</strong> Faça login para salvar as configurações permanentemente no Firebase. Sem login, as configurações ficam apenas no navegador.
+                    </p>
+                  </div>
+                )}
+
+                {!whatsappService.isConfigured() && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-xs text-red-700">
+                      ❌ <strong>WhatsApp API não configurado:</strong> Configure as variáveis de ambiente do WhatsApp para envio de mensagens.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -434,51 +577,6 @@ const WhatsAppMessageTemplates = () => {
                     💡 <strong>Dica:</strong> Nos templates reais, essas informações vêm dos dados reais de cada cliente e fatura.
                   </p>
                 </div>
-              </div>
-            </div>
-
-            {/* Status do Serviço */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  📊 Status do Serviço
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Configuração atual do WhatsApp
-                </p>
-              </div>
-
-              <div className="p-6">
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">WhatsApp API:</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      whatsappService.isConfigured() 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {whatsappService.isConfigured() ? '✅ Configurado' : '❌ Não Configurado'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Templates:</span>
-                    <span className="font-medium text-green-600">✅ 5 Disponíveis</span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Configurações:</span>
-                    <span className="font-medium text-blue-600">✅ Salvas Localmente</span>
-                  </div>
-                </div>
-
-                {!whatsappService.isConfigured() && (
-                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
-                    <p className="text-xs text-orange-700">
-                      ⚠️ <strong>Atenção:</strong> Configure as variáveis de ambiente do WhatsApp para envio automático de mensagens.
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -551,7 +649,7 @@ const WhatsAppMessageTemplates = () => {
                 {/* Ações */}
                 <div className="flex justify-between items-center pt-4 border-t border-gray-200">
                   <div className="text-sm text-gray-600">
-                    Template gerado com suas configurações atuais
+                    Template gerado com suas configurações {firebaseStatus.status === 'connected' ? 'do Firebase' : 'locais'}
                   </div>
                   <div className="flex space-x-3">
                     <button

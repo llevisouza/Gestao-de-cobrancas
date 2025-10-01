@@ -247,6 +247,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         </div>
 
+        {/* Nome da assinatura */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nome da Assinatura *
@@ -277,6 +278,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           )}
         </div>
 
+        {/* Valor */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Valor (R$) *
@@ -305,6 +307,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           )}
         </div>
 
+        {/* Frequência */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Frequência de Cobrança *
@@ -351,6 +354,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         </div>
 
+        {/* Campos condicionais */}
         {formData.recurrenceType === 'weekly' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -375,7 +379,6 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
         {formData.recurrenceType === 'monthly' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Dia do Vencimento *
             </label>
             <select 
               name="dayOfMonth" 
@@ -432,6 +435,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         )}
 
+        {/* Data de início */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Data de Início *
@@ -461,6 +465,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           )}
         </div>
 
+        {/* Status */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Status *
@@ -483,6 +488,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </p>
         </div>
 
+        {/* Resumo */}
         {formData.name && formData.amount && (
           <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-md p-4">
             <h4 className="text-sm font-medium text-orange-900 mb-3 flex items-center">
@@ -520,6 +526,7 @@ const SubscriptionModal = ({ isOpen, onClose, onSave, subscription, client, load
           </div>
         )}
 
+        {/* Botões */}
         <div className="flex justify-end space-x-3 pt-4">
           <button 
             type="button" 

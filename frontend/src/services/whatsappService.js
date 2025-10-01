@@ -1,13 +1,13 @@
-// src/services/whatsappService.js - VERSÃO COM FIREBASE FIRESTORE
+// src/services/whatsappService.js - VERSÃO CORRIGIDA SEM MEMORY LEAKS
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { 
   doc, 
   getDoc, 
   setDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  onSnapshot
 } from 'firebase/firestore';
-import { db } from './firebase';
-import { auth } from './firebase';
+import { db, auth } from './firebase';
 
 class WhatsAppService {
   constructor() {
@@ -25,38 +25,69 @@ class WhatsAppService {
       supportHours: '8h às 18h, Segunda a Sexta'
     };
 
-    // Carregar configurações do Firebase quando houver usuário
-    this.loadCompanyInfoFromFirebase();
+    // Listener do Firestore
+    this.configUnsubscribe = null;
+    
+    // Inicializar quando auth estiver pronto
+    this.initializeWhenReady();
   }
 
   // ========================================
-  // CONFIGURAÇÕES DA EMPRESA - FIREBASE
+  // INICIALIZAÇÃO CONTROLADA
   // ========================================
   
-  async loadCompanyInfoFromFirebase() {
+  async initializeWhenReady() {
+    // Aguardar auth estar pronto
+    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        unsubscribeAuth(); // Limpar listener de auth
+        await this.setupFirestoreListener();
+      }
+    });
+  }
+
+  // ========================================
+  // CONFIGURAÇÕES COM FIRESTORE REAL-TIME
+  // ========================================
+  
+  async setupFirestoreListener() {
     try {
-      // Aguardar usuário estar logado
       if (!auth.currentUser) {
-        console.log('🔄 Aguardando usuário para carregar configurações...');
+        console.log('⚠️ Usuário não autenticado para listener');
         return;
       }
 
       const userId = auth.currentUser.uid;
       const configDocRef = doc(db, 'settings', `company_${userId}`);
-      const configDoc = await getDoc(configDocRef);
-      
-      if (configDoc.exists()) {
-        const savedConfig = configDoc.data();
-        this.companyInfo = { ...this.companyInfo, ...savedConfig };
-        console.log('✅ Configurações da empresa carregadas do Firebase:', this.companyInfo.name);
-      } else {
-        console.log('ℹ️ Nenhuma configuração salva encontrada, usando padrões');
-        // Salvar configurações padrão no Firebase
-        await this.saveCompanyInfoToFirebase();
+
+      // Cleanup listener anterior se existir
+      if (this.configUnsubscribe) {
+        this.configUnsubscribe();
       }
+
+      // Setup novo listener com onSnapshot
+      this.configUnsubscribe = onSnapshot(
+        configDocRef,
+        (docSnapshot) => {
+          if (docSnapshot.exists()) {
+            const savedConfig = docSnapshot.data();
+            this.companyInfo = { ...this.companyInfo, ...savedConfig };
+            console.log('✅ Configurações atualizadas via listener:', this.companyInfo.name);
+          } else {
+            console.log('ℹ️ Nenhuma configuração encontrada, criando padrão...');
+            this.saveCompanyInfoToFirebase();
+          }
+        },
+        (error) => {
+          console.error('❌ Erro no listener de configurações:', error);
+          // Fallback para localStorage
+          this.loadCompanyInfoFromLocalStorage();
+        }
+      );
+
+      console.log('✅ Listener de configurações ativado');
     } catch (error) {
-      console.error('❌ Erro ao carregar configurações do Firebase:', error);
-      // Fallback para localStorage temporário
+      console.error('❌ Erro ao setup listener:', error);
       this.loadCompanyInfoFromLocalStorage();
     }
   }
@@ -64,8 +95,7 @@ class WhatsAppService {
   async saveCompanyInfoToFirebase() {
     try {
       if (!auth.currentUser) {
-        console.error('❌ Usuário não autenticado para salvar configurações');
-        // Fallback para localStorage
+        console.error('❌ Usuário não autenticado');
         this.saveCompanyInfoToLocalStorage();
         return false;
       }
@@ -79,68 +109,80 @@ class WhatsAppService {
         userId: userId
       }, { merge: true });
       
-      console.log('✅ Configurações da empresa salvas no Firebase!');
-      
-      // Também salvar no localStorage como backup
-      this.saveCompanyInfoToLocalStorage();
+      console.log('✅ Configurações salvas no Firebase!');
+      this.saveCompanyInfoToLocalStorage(); // Backup local
       
       return true;
     } catch (error) {
-      console.error('❌ Erro ao salvar configurações no Firebase:', error);
-      // Fallback para localStorage
+      console.error('❌ Erro ao salvar no Firebase:', error);
       this.saveCompanyInfoToLocalStorage();
       return false;
     }
   }
 
-  // Fallback para localStorage
+  // Fallback localStorage
   loadCompanyInfoFromLocalStorage() {
-    const saved = localStorage.getItem('whatsapp_company_info');
-    if (saved) {
-      this.companyInfo = { ...this.companyInfo, ...JSON.parse(saved) };
-      console.log('🔄 Configurações carregadas do localStorage (fallback)');
+    try {
+      const saved = localStorage.getItem('whatsapp_company_info');
+      if (saved) {
+        this.companyInfo = { ...this.companyInfo, ...JSON.parse(saved) };
+        console.log('🔄 Configurações do localStorage (fallback)');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar localStorage:', error);
     }
   }
 
   saveCompanyInfoToLocalStorage() {
-    localStorage.setItem('whatsapp_company_info', JSON.stringify(this.companyInfo));
-    console.log('💾 Configurações salvas no localStorage (backup)');
+    try {
+      localStorage.setItem('whatsapp_company_info', JSON.stringify(this.companyInfo));
+      console.log('💾 Backup no localStorage');
+    } catch (error) {
+      console.error('Erro ao salvar no localStorage:', error);
+    }
   }
 
   async updateCompanyInfo(newInfo) {
-    console.log('🔄 Atualizando configurações da empresa:', newInfo);
-    
-    // Atualizar configurações locais
+    console.log('🔄 Atualizando configurações:', newInfo);
     this.companyInfo = { ...this.companyInfo, ...newInfo };
-    
-    // Salvar no Firebase
-    const firebaseSaved = await this.saveCompanyInfoToFirebase();
-    
-    if (!firebaseSaved) {
-      console.warn('⚠️ Não foi possível salvar no Firebase, salvo apenas localmente');
-    }
-    
-    return firebaseSaved;
+    return await this.saveCompanyInfoToFirebase();
   }
 
   getCompanyInfo() {
     return this.companyInfo;
   }
 
-  // Método para recarregar configurações (útil quando usuário faz login)
   async reloadCompanyInfo() {
-    console.log('🔄 Recarregando configurações da empresa...');
-    await this.loadCompanyInfoFromFirebase();
+    // Força reload do Firestore
+    if (auth.currentUser) {
+      const userId = auth.currentUser.uid;
+      const configDocRef = doc(db, 'settings', `company_${userId}`);
+      const docSnapshot = await getDoc(configDocRef);
+      
+      if (docSnapshot.exists()) {
+        this.companyInfo = { ...this.companyInfo, ...docSnapshot.data() };
+      }
+    }
     return this.companyInfo;
+  }
+
+  // ========================================
+  // CLEANUP (IMPORTANTE!)
+  // ========================================
+  
+  cleanup() {
+    // Limpar listener do Firestore
+    if (this.configUnsubscribe) {
+      this.configUnsubscribe();
+      this.configUnsubscribe = null;
+      console.log('🧹 Listener do WhatsApp Service limpo');
+    }
   }
 
   // ========================================
   // TEMPLATES DE MENSAGENS
   // ========================================
 
-  /**
-   * Template para fatura vencida
-   */
   getOverdueInvoiceTemplate(invoice, client, subscription = null) {
     const clientPix = client.pix || this.companyInfo.pixKey;
     const daysOverdue = this.calculateDaysOverdue(invoice.dueDate);
@@ -174,9 +216,6 @@ Sua fatura está vencida há *${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}*:
 *${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
   }
 
-  /**
-   * Template para lembrete de vencimento
-   */
   getReminderTemplate(invoice, client, subscription = null) {
     const clientPix = client.pix || this.companyInfo.pixKey;
     const daysUntilDue = this.calculateDaysUntilDue(invoice.dueDate);
@@ -212,9 +251,6 @@ ${subscription && subscription.recurrenceType === 'monthly' ? `🔄 *Plano Ativo
 *${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
   }
 
-  /**
-   * Template para nova fatura gerada
-   */
   getNewInvoiceTemplate(invoice, client, subscription = null) {
     const clientPix = client.pix || this.companyInfo.pixKey;
     
@@ -253,9 +289,6 @@ ${subscription ? `🔄 *Detalhes do Plano:*
 *${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
   }
 
-  /**
-   * Template para confirmação de pagamento
-   */
   getPaymentConfirmedTemplate(invoice, client, subscription = null) {
     return `✅ *PAGAMENTO CONFIRMADO - ${this.companyInfo.name.toUpperCase()}*
 
@@ -293,9 +326,6 @@ O comprovante oficial será enviado para ${client.email}
 *${this.companyInfo.name}* - ${this.companyInfo.website || ''}`;
   }
 
-  /**
-   * Template para fatura final (último aviso)
-   */
   getFinalNoticeTemplate(invoice, client, subscription = null) {
     const clientPix = client.pix || this.companyInfo.pixKey;
     const daysOverdue = this.calculateDaysOverdue(invoice.dueDate);
@@ -340,7 +370,9 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
 
   calculateDaysOverdue(dueDate) {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
     const diffTime = today - due;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 0;
@@ -348,7 +380,9 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
 
   calculateDaysUntilDue(dueDate) {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
     const diffTime = due - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 0;
@@ -381,7 +415,6 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
         nextDate.setDate(subscription.dayOfMonth);
         break;
       case 'weekly':
-        // Implementar lógica semanal se necessário
         nextDate.setDate(nextDate.getDate() + 7);
         break;
       default:
@@ -401,22 +434,25 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
         throw new Error('Configuração WhatsApp incompleta');
       }
 
-      const response = await fetch(`${this.apiUrl}/message/sendText`, {
+      const cleanPhone = phone.replace(/[^\d]/g, '');
+      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+      const response = await fetch(`${this.apiUrl}/message/sendText/${this.instanceName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'apikey': this.apiKey,
         },
         body: JSON.stringify({
-          instance: this.instanceName,
-          number: phone.replace(/[^\d]/g, ''), // Remove formatação
-          message: message,
+          number: formattedPhone,
+          text: message,
           ...options
         })
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -433,15 +469,15 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
         return { success: false, error: 'Configuração incompleta' };
       }
 
-      const response = await fetch(`${this.apiUrl}/instance/status`, {
+      const response = await fetch(`${this.apiUrl}/instance/connectionState/${this.instanceName}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'apikey': this.apiKey,
         },
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -458,15 +494,15 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
         return { success: false, error: 'Configuração incompleta' };
       }
 
-      const response = await fetch(`${this.apiUrl}/instance/qr`, {
+      const response = await fetch(`${this.apiUrl}/instance/connect/${this.instanceName}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'apikey': this.apiKey,
         },
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -478,28 +514,18 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
   }
 
   // ========================================
-  // UTILITÁRIOS DE VALIDAÇÃO
+  // UTILITÁRIOS
   // ========================================
 
   isValidPhoneNumber(phone) {
-    // Remove todos os caracteres não numéricos
     const cleaned = phone.replace(/[^\d]/g, '');
-    // Telefone brasileiro: 11 dígitos (celular) ou 10 dígitos (fixo)
-    return cleaned.length === 11 || cleaned.length === 10;
+    return cleaned.length >= 10 && cleaned.length <= 13;
   }
 
   formatPhoneForWhatsApp(phone) {
-    // Remove formatação e adiciona código do país se necessário
     const cleaned = phone.replace(/[^\d]/g, '');
-    if (cleaned.startsWith('55')) {
-      return cleaned;
-    }
-    return '55' + cleaned;
+    return cleaned.startsWith('55') ? cleaned : '55' + cleaned;
   }
-
-  // ========================================
-  // CONFIGURAÇÃO E SETUP
-  // ========================================
 
   updateAPIConfig(config) {
     this.apiUrl = config.apiUrl || this.apiUrl;
@@ -519,15 +545,11 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
     return !!(this.apiUrl && this.apiKey && this.instanceName);
   }
 
-  // ========================================
-  // MÉTODOS ADICIONAIS PARA COMPATIBILIDADE
-  // ========================================
-
   async checkConnection() {
     try {
       const status = await this.getInstanceStatus();
       return {
-        connected: status.success && status.data?.status === 'connected',
+        connected: status.success && status.data?.state === 'open',
         data: status.data,
         error: status.error
       };
@@ -539,6 +561,7 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
     }
   }
 
+  // Métodos de conveniência
   async sendOverdueNotification(invoice, client, subscription = null) {
     const message = this.getOverdueInvoiceTemplate(invoice, client, subscription);
     const phone = this.formatPhoneForWhatsApp(client.phone);
@@ -564,7 +587,14 @@ Esta é nossa **última tentativa** de contato sobre sua fatura em atraso.
   }
 }
 
-// Criar instância única (Singleton)
+// Singleton instance
 const whatsappService = new WhatsAppService();
+
+// Cleanup global quando necessário
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    whatsappService.cleanup();
+  });
+}
 
 export { whatsappService };

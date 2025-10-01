@@ -1,43 +1,14 @@
-// src/components/dashboard/KPICards.js
+// src/components/dashboard/KPICards.js - VERSÃO CORRIGIDA
 import React from 'react';
 import { formatCurrency } from '../../utils/formatters';
 
-const KPICards = ({ invoices, clients }) => {
-  // Calcular KPIs
-  const getKPIData = () => {
-    const totalClients = clients.length;
-    const pendingInvoices = invoices.filter(inv => inv.status === 'pending').length;
-    const overdueInvoices = invoices.filter(inv => inv.status === 'overdue').length;
-    
-    const totalRevenue = invoices
-      .filter(inv => inv.status === 'paid')
-      .reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0);
-    
-    const pendingRevenue = invoices
-      .filter(inv => inv.status === 'pending')
-      .reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0);
-
-    const overdueRevenue = invoices
-      .filter(inv => inv.status === 'overdue')
-      .reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0);
-
-    return {
-      totalClients,
-      pendingInvoices,
-      overdueInvoices,
-      totalRevenue,
-      pendingRevenue,
-      overdueRevenue
-    };
-  };
-
-  const kpiData = getKPIData();
-
+const KPICards = ({ metrics }) => {
+  // ✅ CORREÇÃO: Recebe métricas já calculadas (sem recalcular)
   const kpiCards = [
     {
       id: 'clients',
       title: 'Total de Clientes',
-      value: kpiData.totalClients,
+      value: metrics.totalClients,
       icon: (
         <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
           <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
@@ -50,7 +21,7 @@ const KPICards = ({ invoices, clients }) => {
     {
       id: 'revenue',
       title: 'Receita Total',
-      value: formatCurrency(kpiData.totalRevenue),
+      value: formatCurrency(metrics.totalRevenue),
       icon: (
         <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
           <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
@@ -64,8 +35,8 @@ const KPICards = ({ invoices, clients }) => {
     {
       id: 'pending',
       title: 'Faturas Pendentes',
-      value: kpiData.pendingInvoices,
-      subtitle: formatCurrency(kpiData.pendingRevenue),
+      value: metrics.pendingInvoices,
+      subtitle: formatCurrency(metrics.pendingRevenue),
       icon: (
         <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
@@ -78,8 +49,8 @@ const KPICards = ({ invoices, clients }) => {
     {
       id: 'overdue',
       title: 'Faturas em Atraso',
-      value: kpiData.overdueInvoices,
-      subtitle: formatCurrency(kpiData.overdueRevenue),
+      value: metrics.overdueInvoices,
+      subtitle: formatCurrency(metrics.overdueRevenue),
       icon: (
         <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -90,6 +61,10 @@ const KPICards = ({ invoices, clients }) => {
       changeType: 'negative'
     }
   ];
+
+  // ✅ CORREÇÃO: Usar métricas recebidas para cálculos
+  const totalInvoices = metrics.correctedInvoices?.length || 0;
+  const paidInvoices = metrics.correctedInvoices?.filter(i => i.status === 'paid').length || 0;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -127,41 +102,41 @@ const KPICards = ({ invoices, clients }) => {
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Meta mensal: {formatCurrency(kpiData.totalRevenue * 1.33)}
+                Meta mensal: {formatCurrency(metrics.totalRevenue * 1.33)}
               </p>
             </div>
           )}
 
           {/* Progress bar para faturas pendentes */}
-          {card.id === 'pending' && kpiData.pendingInvoices > 0 && (
+          {card.id === 'pending' && metrics.pendingInvoices > 0 && (
             <div className="mt-4">
               <div className="progress-bar">
                 <div 
                   className="progress-fill-warning"
                   style={{ 
-                    width: `${Math.min((kpiData.pendingInvoices / (kpiData.pendingInvoices + invoices.filter(i => i.status === 'paid').length)) * 100, 100)}%` 
+                    width: `${totalInvoices > 0 ? Math.min((metrics.pendingInvoices / (metrics.pendingInvoices + paidInvoices)) * 100, 100) : 0}%` 
                   }}
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {((kpiData.pendingInvoices / invoices.length) * 100).toFixed(1)}% do total
+                {totalInvoices > 0 ? ((metrics.pendingInvoices / totalInvoices) * 100).toFixed(1) : 0}% do total
               </p>
             </div>
           )}
 
           {/* Progress bar para faturas em atraso */}
-          {card.id === 'overdue' && kpiData.overdueInvoices > 0 && (
+          {card.id === 'overdue' && metrics.overdueInvoices > 0 && (
             <div className="mt-4">
               <div className="progress-bar">
                 <div 
                   className="progress-fill-error"
                   style={{ 
-                    width: `${Math.min((kpiData.overdueInvoices / invoices.length) * 100, 100)}%` 
+                    width: `${totalInvoices > 0 ? Math.min((metrics.overdueInvoices / totalInvoices) * 100, 100) : 0}%` 
                   }}
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {((kpiData.overdueInvoices / invoices.length) * 100).toFixed(1)}% do total
+                {totalInvoices > 0 ? ((metrics.overdueInvoices / totalInvoices) * 100).toFixed(1) : 0}% do total
               </p>
             </div>
           )}

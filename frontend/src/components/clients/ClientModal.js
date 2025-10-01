@@ -59,11 +59,15 @@ const ClientModal = ({ isOpen, onClose, onSave, client }) => {
       newErrors.email = 'Email inválido';
     }
     
-    if (formData.cpf && !isValidCPF(formData.cpf)) {
+    // Validação de CPF: apenas valida se foi preenchido
+    const cpfClean = removeFormatting(formData.cpf);
+    if (cpfClean && cpfClean.length > 0 && !isValidCPF(formData.cpf)) {
       newErrors.cpf = 'CPF inválido';
     }
     
-    if (formData.phone && removeFormatting(formData.phone).length < 10) {
+    // Validação de telefone: apenas valida se foi preenchido
+    const phoneClean = removeFormatting(formData.phone);
+    if (phoneClean && phoneClean.length > 0 && phoneClean.length < 10) {
       newErrors.phone = 'Telefone deve ter pelo menos 10 dígitos';
     }
     

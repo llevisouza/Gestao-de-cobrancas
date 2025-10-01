@@ -1,4 +1,4 @@
-// src/components/clients/ClientTable.js - VERSÃO ATUALIZADA
+// src/components/clients/ClientTable.js - VERSÃO CORRIGIDA
 import React from 'react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -37,17 +37,16 @@ const ClientTable = ({
     }
   };
 
-  // Função para confirmar exclusão de assinatura
   const handleDeleteSubscription = async (subscription, clientName) => {
     const subscriptionName = subscription.name || `Assinatura de ${formatCurrency(subscription.amount)}`;
-    const confirmMessage = `Tem certeza que deseja excluir a assinatura "${subscriptionName}" do cliente ${clientName}?`;
+    const confirmMessage = `Tem certeza que deseja excluir a assinatura "${subscriptionName}" do cliente ${clientName}?\n\n❌ Esta ação não pode ser desfeita.`;
     
     if (window.confirm(confirmMessage)) {
       try {
         await onDeleteSubscription(subscription.id);
         alert('Assinatura excluída com sucesso!');
       } catch (error) {
-        alert(error.message);
+        alert(`Erro ao excluir assinatura: ${error.message}`);
       }
     }
   };
@@ -190,7 +189,6 @@ const ClientTable = ({
                               )}
                             </div>
                             
-                            {/* Botões de ação para assinatura */}
                             <div className="flex space-x-1 ml-3">
                               <button
                                 onClick={() => onEditSubscription(sub, client)}
@@ -245,7 +243,7 @@ const ClientTable = ({
                       </button>
                       <button 
                         onClick={() => {
-                          const confirmMessage = `Tem certeza que deseja excluir o cliente ${client.name}?`;
+                          const confirmMessage = `Tem certeza que deseja excluir o cliente ${client.name}?\n\n❌ Esta ação não pode ser desfeita.`;
                           if (window.confirm(confirmMessage)) {
                             onDeleteClient(client.id);
                           }

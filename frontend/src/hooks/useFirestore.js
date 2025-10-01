@@ -5,7 +5,7 @@ import { clientService, subscriptionService, invoiceService } from '../services/
 export const useFirestore = () => {
   const { user } = useFirebaseAuth();
   
-  // ⚡ OTIMIZAÇÃO: Usar refs para evitar re-renders desnecessários
+  // Usar refs para evitar re-renders desnecessários
   const isInitializedRef = useRef(false);
   const unsubscribersRef = useRef([]);
   const loadingTimeoutRef = useRef(null);
@@ -17,7 +17,7 @@ export const useFirestore = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ⚡ OTIMIZAÇÃO: Debounced loading para evitar flickers
+  // Debounced loading para evitar flickers
   const setLoadingWithDelay = useCallback((isLoading, delay = 0) => {
     if (loadingTimeoutRef.current) {
       clearTimeout(loadingTimeoutRef.current);
@@ -32,7 +32,7 @@ export const useFirestore = () => {
     }
   }, []);
 
-  // ⚡ OTIMIZAÇÃO: Cleanup otimizado
+  // Cleanup otimizado
   const cleanupListeners = useCallback(() => {
     console.log('🧹 Limpando listeners otimizado...');
     
@@ -55,7 +55,7 @@ export const useFirestore = () => {
     }
   }, []);
 
-  // ⚡ OTIMIZAÇÃO: Setup listeners uma única vez
+  // Setup listeners uma única vez
   const setupListeners = useCallback(async () => {
     // Evitar múltiplas inicializações
     if (!user || isInitializedRef.current) {
@@ -72,7 +72,7 @@ export const useFirestore = () => {
     cleanupListeners();
 
     try {
-      // ⚡ OTIMIZAÇÃO: Setup em paralelo com Promise.all
+      // Setup em paralelo com Promise.all
       const setupPromises = [];
       
       // Clientes
@@ -102,11 +102,11 @@ export const useFirestore = () => {
         });
       }));
 
-      // ⚡ OTIMIZAÇÃO: Aguardar todos os listeners em paralelo
+      // Aguardar todos os listeners em paralelo
       const unsubscribers = await Promise.all(setupPromises);
       unsubscribersRef.current = unsubscribers;
 
-      // ⚡ OTIMIZAÇÃO: Loading com delay mínimo para UX suave
+      // Loading com delay mínimo para UX suave
       setLoadingWithDelay(false, 500);
       console.log('✅ Todos os listeners configurados com sucesso!');
 
@@ -117,7 +117,7 @@ export const useFirestore = () => {
     }
   }, [user, cleanupListeners, setLoadingWithDelay]);
 
-  // ⚡ OTIMIZAÇÃO: Effect com cleanup robusto
+  // Effect com cleanup robusto
   useEffect(() => {
     if (user) {
       setupListeners();
@@ -137,7 +137,7 @@ export const useFirestore = () => {
     };
   }, [user, setupListeners, cleanupListeners, setLoadingWithDelay]);
 
-  // ===== OPERAÇÕES OTIMIZADAS DE CLIENTES =====
+  // OPERAÇÕES OTIMIZADAS DE CLIENTES
   const createClient = useCallback(async (clientData) => {
     if (!user) {
       throw new Error('Usuário não autenticado');
@@ -148,7 +148,7 @@ export const useFirestore = () => {
     }
 
     try {
-      console.log('🔄 Criando cliente:', clientData.name);
+      console.log('📄 Criando cliente:', clientData.name);
       
       const result = await clientService.create(clientData);
       
@@ -171,7 +171,7 @@ export const useFirestore = () => {
     }
 
     try {
-      console.log('🔄 Atualizando cliente:', clientId);
+      console.log('📄 Atualizando cliente:', clientId);
       
       const result = await clientService.update(clientId, clientData);
       
@@ -211,7 +211,7 @@ export const useFirestore = () => {
     }
   }, [user]);
 
-  // ===== OPERAÇÕES OTIMIZADAS DE ASSINATURAS =====
+  // OPERAÇÕES OTIMIZADAS DE ASSINATURAS
   const createSubscription = useCallback(async (subscriptionData) => {
     if (!user) {
       throw new Error('Usuário não autenticado');
@@ -222,7 +222,7 @@ export const useFirestore = () => {
     }
 
     try {
-      console.log('🔄 Criando assinatura:', subscriptionData.name);
+      console.log('📄 Criando assinatura:', subscriptionData.name);
       
       const result = await subscriptionService.create(subscriptionData);
       
@@ -245,7 +245,7 @@ export const useFirestore = () => {
     }
 
     try {
-      console.log('🔄 Atualizando assinatura:', subscriptionId);
+      console.log('📄 Atualizando assinatura:', subscriptionId);
       
       const result = await subscriptionService.update(subscriptionId, subscriptionData);
       
@@ -285,14 +285,14 @@ export const useFirestore = () => {
     }
   }, [user]);
 
-  // ===== OPERAÇÕES OTIMIZADAS DE FATURAS =====
+  // OPERAÇÕES OTIMIZADAS DE FATURAS
   const updateInvoice = useCallback(async (invoiceId, invoiceData) => {
     if (!user || !invoiceId) {
       throw new Error('Parâmetros inválidos');
     }
 
     try {
-      console.log('🔄 Atualizando fatura:', invoiceId);
+      console.log('📄 Atualizando fatura:', invoiceId);
       
       const result = await invoiceService.update(invoiceId, invoiceData);
       
@@ -317,7 +317,7 @@ export const useFirestore = () => {
     try {
       console.log('🚀 Gerando faturas das assinaturas ativas...');
       
-      // ⚡ OTIMIZAÇÃO: Mostrar loading apenas para operações longas
+      // Mostrar loading apenas para operações longas
       if (subscriptions.length > 10) {
         setLoadingWithDelay(true);
       }
@@ -339,7 +339,7 @@ export const useFirestore = () => {
     }
   }, [user, subscriptions.length, setLoadingWithDelay]);
 
-  // ===== FUNÇÃO OTIMIZADA PARA CRIAR DADOS DE EXEMPLO =====
+  // FUNÇÃO OTIMIZADA PARA CRIAR DADOS DE EXEMPLO
   const createExampleData = useCallback(async () => {
     if (!user) {
       throw new Error('Usuário não autenticado');
@@ -355,7 +355,7 @@ export const useFirestore = () => {
 
       setLoadingWithDelay(true);
 
-      // ⚡ OTIMIZAÇÃO: Dados de exemplo mais compactos
+      // Dados de exemplo mais compactos
       const exampleClients = [
         {
           name: 'Ana Silva',
@@ -392,7 +392,7 @@ export const useFirestore = () => {
         }
       }
 
-      // ⚡ OTIMIZAÇÃO: Aguardar sincronização
+      // Aguardar sincronização
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Criar assinaturas
@@ -459,7 +459,7 @@ export const useFirestore = () => {
     }
   }, [user, clients.length, createClient, createSubscription, generateInvoices, setLoadingWithDelay]);
 
-  // ⚡ OTIMIZAÇÃO: Função de refresh otimizada
+  // Função de refresh otimizada
   const refreshData = useCallback(async () => {
     if (!user) return;
 
@@ -479,7 +479,7 @@ export const useFirestore = () => {
     }
   }, [user, setupListeners, setLoadingWithDelay]);
 
-  // ⚡ OTIMIZAÇÃO: Limpar dados otimizado
+  // Limpar dados otimizado
   const clearAllData = useCallback(async () => {
     if (!user || clients.length === 0) {
       return { success: false, message: 'Nenhum dado para limpar' };
@@ -508,7 +508,7 @@ export const useFirestore = () => {
     // Estados
     clients,
     subscriptions,
-    invoices,
+    invoices, // ✅ CORRIGIDO: Adicionado
     loading,
     error,
 

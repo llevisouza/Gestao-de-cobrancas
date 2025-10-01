@@ -1,12 +1,16 @@
-// src/components/dashboard/Dashboard.js
+// src/components/dashboard/Dashboard.js - VERSÃO CORRIGIDA
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
-// import KPICards from './KPICards';
 import InvoiceTable from './InvoiceTable';
 import WhatsAppQuickActions from './WhatsAppQuickActions';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { formatCurrency } from '../../utils/formatters';
-import { getDaysDifference } from '../../utils/dateUtils';
+
+// ✅ CORREÇÃO: Importar utilitários padronizados
+import { 
+  processInvoicesStandardized,
+  getCorrectedInvoiceStatus 
+} from '../../utils/invoiceStatusUtils';
 
 const Dashboard = ({ onNavigate }) => {
   const { 
@@ -29,7 +33,7 @@ const Dashboard = ({ onNavigate }) => {
   const [showAnimations] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
 
-  // Função de notificação (definida primeiro para evitar problemas de ordem)
+  // Função de notificação
   const showNotification = useCallback((type, title, message) => {
     const icons = {
       success: '✅',
@@ -48,53 +52,46 @@ const Dashboard = ({ onNavigate }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // Função para determinar status real da fatura
-  const getActualInvoiceStatus = (invoice) => {
-    if (invoice.status === 'pago') {
-      return 'pago';
-    }
-    const daysDiff = getDaysDifference(invoice.dueDate);
-    return daysDiff < 0 ? 'vencida' : 'pendente';
-  };
-
-  // Calcular métricas com useMemo
+  // ✅ CORREÇÃO: Calcular métricas usando utilitários padronizados
   const dashboardMetrics = useMemo(() => {
-    console.log('🔄 Recalculando métricas do dashboard...');
+    console.log('📊 Recalculando métricas do dashboard...');
     const today = new Date().toISOString().split('T')[0];
 
-    const correctedInvoices = invoices.map(invoice => ({
-      ...invoice,
-      actualStatus: getActualInvoiceStatus(invoice)
-    }));
+    // ✅ CORREÇÃO: Usar processInvoicesStandardized
+    const correctedInvoices = processInvoicesStandardized(invoices);
 
     const todayInvoices = correctedInvoices.filter(inv => 
       inv.generationDate?.includes && inv.generationDate.includes(today)
     ).length;
 
+    // ✅ CORREÇÃO: Usar status padronizado 'pending' ao invés de 'pendente'
     const pendingAmount = correctedInvoices
-      .filter(inv => inv.actualStatus === 'pendente')
+      .filter(inv => inv.status === 'pending')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
-    const overdueCount = correctedInvoices.filter(inv => inv.actualStatus === 'vencida').length;
+    // ✅ CORREÇÃO: Usar status padronizado 'overdue' ao invés de 'vencida'
+    const overdueCount = correctedInvoices.filter(inv => inv.status === 'overdue').length;
     const overdueAmount = correctedInvoices
-      .filter(inv => inv.actualStatus === 'vencida')
+      .filter(inv => inv.status === 'overdue')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
+    // ✅ CORREÇÃO: Usar status padronizado 'paid' ao invés de 'pago'
     const totalRevenue = correctedInvoices
-      .filter(inv => inv.actualStatus === 'pago')
+      .filter(inv => inv.status === 'paid')
       .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
 
     const paymentRate = correctedInvoices.length > 0 
-      ? (correctedInvoices.filter(inv => inv.actualStatus === 'pago').length / correctedInvoices.length * 100)
+      ? (correctedInvoices.filter(inv => inv.status === 'paid').length / correctedInvoices.length * 100)
       : 0;
 
+    // ✅ CORREÇÃO: Usar status padronizado em recentActivity
     const recentActivity = [
       ...correctedInvoices.slice(0, 3).map(inv => ({
         id: inv.id,
         type: 'invoice',
-        message: `Fatura de ${formatCurrency(inv.amount)} - ${inv.actualStatus}`,
+        message: `Fatura de ${formatCurrency(inv.amount)} - ${inv.status}`,
         time: inv.generationDate || inv.createdAt,
-        status: inv.actualStatus,
+        status: inv.status,
         client: clients.find(c => c.id === inv.clientId)?.name || 'Cliente não encontrado'
       })),
       ...clients.slice(0, 2).map(client => ({
@@ -530,9 +527,9 @@ const Dashboard = ({ onNavigate }) => {
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm ${
                         activity.type === 'invoice' 
-                          ? activity.status === 'pago'
+                          ? activity.status === 'paid'
                             ? 'bg-green-100 text-green-600' 
-                            : activity.status === 'vencida'
+                            : activity.status === 'overdue'
                             ? 'bg-red-100 text-red-600'
                             : 'bg-blue-100 text-blue-600'
                           : 'bg-green-100 text-green-600'
@@ -548,17 +545,17 @@ const Dashboard = ({ onNavigate }) => {
                         </p>
                       </div>
                       <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        activity.status === 'pago' 
+                        activity.status === 'paid' 
                           ? 'bg-green-100 text-green-700'
-                          : activity.status === 'vencida'
+                          : activity.status === 'overdue'
                           ? 'bg-red-100 text-red-700'
-                          : activity.status === 'pendente'
+                          : activity.status === 'pending'
                           ? 'bg-yellow-100 text-yellow-700'
                           : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {activity.status === 'pago' ? 'Pago' : 
-                         activity.status === 'vencida' ? 'Vencida' : 
-                         activity.status === 'pendente' ? 'Pendente' : 
+                        {activity.status === 'paid' ? 'Pago' : 
+                         activity.status === 'overdue' ? 'Vencida' : 
+                         activity.status === 'pending' ? 'Pendente' : 
                          'Ativo'}
                       </div>
                     </div>
@@ -596,10 +593,6 @@ const Dashboard = ({ onNavigate }) => {
               <div className="grid grid-cols-2 gap-4 mb-8 text-sm">
                 <div className="flex items-center gap-2 text-gray-600">
                   <span className="text-green-500">✓</span>
-                  Recorrências automáticas
-                </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <span className="text-green-500">✓</span>
                   WhatsApp integrado
                 </div>
                 <div className="flex items-center gap-2 text-gray-600">
@@ -631,7 +624,7 @@ const Dashboard = ({ onNavigate }) => {
                 )}
               </button>
               <p className="text-xs text-gray-500 mt-4">
-                🚀 Explore todas as funcionalidades sem compromisso
+                Explore todas as funcionalidades sem compromisso
               </p>
             </div>
           </div>
@@ -678,4 +671,4 @@ const Dashboard = ({ onNavigate }) => {
   );
 };
 
-export default Dashboard;
+export default Dashboard
